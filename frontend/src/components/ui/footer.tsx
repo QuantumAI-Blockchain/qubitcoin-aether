@@ -19,6 +19,7 @@ const resourceLinks = [
   { href: "/docs/exchange", label: "Exchange" },
   { href: "/docs/bridge", label: "ZK Bridge" },
   { href: "/docs/privacy", label: "Privacy" },
+  { href: "/docs/antigravity", label: "SUSY Antigravity" },
 ];
 
 const socialLinks = [

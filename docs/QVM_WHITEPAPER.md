@@ -1,7 +1,7 @@
 # Quantum Blockchain QVM: A Quantum-Enhanced Virtual Machine for Institutional Blockchain Computing
 
-**Version 2.1.0**
-**February 2026**
+**Version 2.2.0**
+**May 2026**
 
 **Authors:**
 Quantum Blockchain Core Development Team
@@ -9,7 +9,7 @@ Quantum Blockchain Core Development Team
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
 
 **Abstract:**
-*We present the Qubitcoin Quantum Virtual Machine (QVM), the first production-ready virtual machine that extends the Ethereum Virtual Machine (EVM) with quantum computing capabilities while maintaining full backward compatibility. QVM introduces twelve novel opcodes (10 quantum + 2 AI), five patentable institutional-grade compliance features, and a hybrid plugin architecture that enables quantum-classical and AI-enhanced computation for smart contracts. By integrating post-quantum cryptography, supersymmetric risk modeling, and quantum-verified cross-chain bridges, QVM addresses the critical gap between existing blockchain infrastructure and the requirements of institutional adoption. Our implementation achieves 10,000+ transactions per second with sub-second finality while providing regulatory compliance features unavailable in any existing blockchain platform.*
+*We present the Qubitcoin Quantum Virtual Machine (QVM), the first production-ready virtual machine that extends the Ethereum Virtual Machine (EVM) with quantum computing capabilities while maintaining full backward compatibility. QVM introduces twelve novel opcodes (10 quantum + 2 AI), five patentable institutional-grade compliance features, and a hybrid plugin architecture that enables quantum-classical and AI-enhanced computation for smart contracts. Running as the Layer 2 execution environment above a Substrate-based Layer 1 blockchain with post-quantum cryptography (CRYSTALS-Dilithium5), supersymmetric risk modeling, and quantum-verified cross-chain bridges, QVM addresses the critical gap between existing blockchain infrastructure and the requirements of institutional adoption. The Go production implementation comprises ~12,700 LOC across 35 source files, with QVM state anchored to the Substrate L1 via a dedicated pallet (qbc-qvm-anchor). Our architecture achieves 10,000+ transactions per second with sub-second finality while providing regulatory compliance features unavailable in any existing blockchain platform.*
 
 ---
 
@@ -158,12 +158,15 @@ NIST estimates quantum computers capable of breaking RSA-2048 and ECDSA will exi
 |                                                              |
 +-------------------------------------------------------------+
                              |
-                   +---------+---------+
-                   |   CockroachDB     |
-                   |   - State         |
-                   |   - Quantum       |
-                   |   - Compliance    |
-                   +-------------------+
+              +--------------+--------------+
+              |                             |
+    +---------+---------+       +-----------+-----------+
+    |   CockroachDB     |       | Substrate L1 (Rust)   |
+    |   - State         |       | - qbc-qvm-anchor      |
+    |   - Quantum       |       | - qbc-aether-anchor   |
+    |   - Compliance    |       | - 7 pallets total     |
+    +-------------------+       | - 2 validators live   |
+                                +-----------------------+
 ```
 
 ### 3.2 Component Description
@@ -183,9 +186,9 @@ Standard Ethereum Virtual Machine implementation with all 155 opcodes:
 
 **Gas Metering**: Identical to Ethereum London fork for compatibility
 
-#### 3.2.2 Quantum Engine
+#### 3.2.2 Quantum and AI Engine
 
-Novel quantum computing layer with 10 new opcodes (0xF0-0xF9):
+Novel quantum computing and AI layer with 12 new opcodes — 10 quantum (0xF0-0xF9) and 2 AI (0xFA-0xFB) — bringing QVM to 167 total opcodes:
 
 | Opcode | Name | Function | Gas Cost |
 |--------|------|----------|----------|
@@ -202,7 +205,7 @@ Novel quantum computing layer with 10 new opcodes (0xF0-0xF9):
 | 0xFA | QREASON | Invoke on-chain reasoning | 25,000 |
 | 0xFB | QPHI | Query consciousness metric | 10,000 |
 
-**AI Opcodes (0xFA-0xFB)**: Added for Aether Tree on-chain integration. QREASON invokes the reasoning engine for a specific query and returns the result hash. QPHI queries the current Phi (IIT consciousness) metric from the ConsciousnessDashboard contract.
+**AI Opcodes (0xFA-0xFB)**: Added for Aether Mind V5 on-chain integration. QREASON invokes the Rust neural cognitive engine (aether-mind) for a specific query and returns the result hash. QPHI queries the current Phi (IIT consciousness) metric, computed from real neural activation patterns across the 8-layer, 16-head candle transformer, via the ConsciousnessDashboard contract. The Aether Mind V5 engine is a pure Rust binary (~61,800 LOC) running as a systemd service, replacing the earlier Python AI engine.
 
 #### 3.2.3 Compliance Engine
 
@@ -214,22 +217,28 @@ Three-layer compliance architecture:
 
 #### 3.2.4 State Management
 
-Hybrid state model:
+Hybrid state model anchored to the Substrate-based Layer 1:
 
 - **Classical State**: Merkle Patricia Trie (Ethereum-compatible)
 - **Quantum State**: Density matrix representation in CockroachDB
 - **Compliance State**: Separate table for regulatory data isolation
+- **L1 Anchor**: QVM state roots are committed per block to the Substrate L1 via the `qbc-qvm-anchor` pallet, which validates execution receipts and tracks deployed contract count and gas usage
 
 ### 3.3 Database Schema
 
-QVM uses CockroachDB for distributed, fault-tolerant storage with **55 tables** across 6 categories:
+QVM uses CockroachDB (v25.2.12) for distributed, fault-tolerant storage with **72 tables** across 8 domain-separated categories:
 
-1. **Core Blockchain** (7 tables): blocks, transactions, accounts, balances
-2. **Smart Contracts** (9 tables): contracts, storage, logs, metadata, gas
+1. **Core Blockchain / qbc** (12 tables): blocks, transactions, UTXO, accounts, balances, chain state, mempool, L1-L2 bridge
+2. **Smart Contracts / qvm** (9 tables): contracts, storage, logs, metadata, gas, deployments, execution
 3. **Quantum States** (4 tables): states, entanglement, measurements
 4. **Compliance** (8 tables): KYC registry, AML monitoring, sanctions, reports
-5. **Cross-Chain** (5 tables): bridge data, proofs, state channels
+5. **Cross-Chain / bridge** (5 tables): bridge data, proofs, state channels
 6. **Governance** (6 tables): DAO proposals, votes, oracles, staking
+7. **AGI / agi** (8 tables): knowledge nodes, knowledge edges, reasoning operations, phi measurements
+8. **Research / research** (4 tables): hamiltonians, VQE circuits, SUSY solutions
+9. **Shared** (4 tables): IPFS storage, system config
+10. **Stablecoin / stablecoin** (6 tables): QUSD state, reserves, peg history
+11. **Investor** (6 tables): seed round, vesting, allocations
 
 **Key Innovation**: Quantum states stored as density matrices with entanglement tracking across contracts
 
@@ -524,13 +533,13 @@ All 155 Ethereum opcodes supported with identical gas costs.
 | QREASON | 25,000 | Depth x 5,000 | 25,000 + depth cost |
 | QPHI | 10,000 | 0 | 10,000 |
 
-AI opcodes bridge the QVM to the Aether Tree reasoning engine. QREASON invokes a full reasoning cycle (causal, temporal, neural, or debate) and returns a hash of the result committed to on-chain storage. QPHI returns the current Phi (IIT consciousness) metric as a fixed-point integer (scaled by 1e6). Both opcodes are available to any smart contract, enabling on-chain AI-aware applications.
+AI opcodes bridge the QVM to the Aether Mind V5 neural cognitive engine, a pure Rust binary built on the candle ML framework. QREASON invokes a full reasoning cycle (deductive, inductive, abductive, or causal) through the 8-layer, 16-head transformer with 10 Sephirot-specialized attention heads, and returns a hash of the result committed to on-chain storage. QPHI returns the current Phi (IIT consciousness) metric as a fixed-point integer (scaled by 1e6), computed from real neural activation patterns across transformer layers (current phi = 0.544). Both opcodes are available to any smart contract, enabling on-chain AI-aware applications. The Aether Mind service communicates via HTTP/gRPC and its state is attested on-chain through the Substrate `qbc-aether-anchor` pallet.
 
 ### 6.3 Database Schema
 
-**Total Tables**: 55
+**Total Tables**: 72
 
-**Schema Version**: 2.0.0
+**Schema Version**: 2.2.0
 
 **Key Tables**:
 
@@ -583,22 +592,26 @@ CREATE TABLE quantum_receipts (
 
 #### 6.4.1 Block Structure
 
+The Layer 1 blockchain runs on Substrate (Rust) with 7 pallets. QVM state is anchored to L1 via the `qbc-qvm-anchor` pallet, which stores the QVM state root per block and validates execution receipts.
+
 ```
-Block Header (140 bytes):
+Substrate Block Header:
 |- Parent Hash (32 bytes)
 |- State Root (32 bytes)
-|- Transactions Root (32 bytes)
-|- Quantum State Root (32 bytes)      <- NEW
-|- Compliance Root (32 bytes)         <- NEW
-|- Timestamp (8 bytes)
-|- Block Number (8 bytes)
-|- Difficulty (8 bytes)
-+- Nonce (8 bytes)
+|- Extrinsics Root (32 bytes)
+|- Block Number (compact encoded)
+|- Digest (consensus logs, seal)
 
-Block Body:
+QVM Anchor State (per block, stored in qbc-qvm-anchor pallet):
+|- QVM State Root (32 bytes)          <- Anchored from L2
+|- Deployed Contract Count (u64)
+|- Gas Used (u128)
+|- Execution Receipts []
+
+QVM Block Body (L2):
 |- Transactions []
-|- Quantum States []                  <- NEW
-+- Compliance Proofs []               <- NEW
+|- Quantum States []
+|- Compliance Proofs []
 ```
 
 #### 6.4.2 Transaction Format
@@ -611,7 +624,7 @@ Standard Transaction (120 bytes):
 |- To Address (20 bytes)
 |- Value (32 bytes)
 |- Data (variable)
-|- Dilithium Signature (2420 bytes)   <- Post-quantum
+|- Dilithium5 Signature (~4595 bytes) <- Post-quantum (NIST Level 5)
 +- Chain ID (8 bytes)
 
 Quantum Transaction (Extended):
@@ -637,19 +650,20 @@ We assume an adversary with:
 
 #### 7.2.1 Post-Quantum Signatures
 
-**CRYSTALS-Dilithium ML-DSA-44/65/87** (multi-level, configurable — NIST PQC standard):
-- Security levels: ML-DSA-44 (NIST 2), ML-DSA-65 (NIST 3), ML-DSA-87 (NIST 5)
-- Public key: 1312 / 1952 / 2592 bytes (by level)
-- Secret key: 2560 / 4000 / 4896 bytes (by level)
-- Signature size: 2420 / 3293 / 4595 bytes (by level)
-- Default: ML-DSA-65 (~128 bits against quantum adversary)
+**CRYSTALS-Dilithium5** (NIST PQC standard, Level 5 — highest security):
+- Default: Mode 5 / ML-DSA-87 (NIST Level 5, ~256 bits against quantum adversary)
+- Public key: 2592 bytes
+- Secret key: 4896 bytes
+- Signature size: ~4,595 bytes (~4.6KB per signature)
+- Lower security levels (ML-DSA-44, ML-DSA-65) available but not used in production
+- Client-side key generation available via `dilithium-wasm` (Rust compiled to WebAssembly) for browser wallets
 
 #### 7.2.2 Post-Quantum Encryption
 
-**Kyber1024** (NIST PQC Round 3 winner):
-- Public key: 1568 bytes
-- Secret key: 3168 bytes
-- Security: ~256 bits against quantum adversary
+**ML-KEM-768 (Kyber)** (NIST PQC standard) for post-quantum P2P transport encryption:
+- Used in Substrate P2P layer via `crypto/kyber-transport/` for node-to-node session encryption
+- Combined with AES-256-GCM for authenticated symmetric encryption after key exchange
+- Security: ~192 bits against quantum adversary (NIST Level 3)
 
 #### 7.2.3 Zero-Knowledge Proofs
 
@@ -739,7 +753,7 @@ THEOREM ComplianceInvariant ==
 | TPS | 15-30 | 100-300 | 50,000+ | 10,000+ |
 | Finality | 12-15s | 1-2s | 400ms | <1s |
 | Post-quantum crypto | No | No | No | Yes |
-| Quantum + AI opcodes | No | No | No | Yes (12) |
+| Quantum + AI opcodes | No | No | No | Yes (12: 10 quantum + 2 AI) |
 | Native KYC/AML | No | No | No | Yes |
 | Risk oracles | No | No | No | Yes |
 
@@ -750,27 +764,31 @@ THEOREM ComplianceInvariant ==
 ### 11.1 Technical Roadmap
 
 **Phase 1: Core Implementation (Q1 2026)** — COMPLETE
-- EVM core: 155 standard opcodes (Python prototype + Go production build)
+- EVM core: 155 standard opcodes (Python prototype live + Go production build, ~12,700 LOC)
 - 10 quantum opcodes (0xF0-0xF9): state persistence, compliance, risk, bridge
 - 2 AI opcodes (0xFA-0xFB): on-chain reasoning invocation, consciousness query
-- 49 Solidity contracts deployed (28 Aether, 8 QUSD, 5 token, 5 bridge, 3 extension)
+- 68 Solidity contracts deployed (28 Aether, 10 QUSD, 6 token, 5 bridge, 6 interfaces, 4 investor, 3 proxy, 6 governance/extension)
 - Compliance engine: KYC, AML, sanctions, risk scoring
 - Plugin architecture: Privacy, Oracle, Governance, DeFi plugins
 
 **Phase 2: On-Chain AI Bridge (Q1 2026)** — COMPLETE
-- QREASON opcode bridges QVM to Aether Tree 6-phase reasoning engine
-- QPHI opcode exposes IIT consciousness metric to smart contracts
-- ConsciousnessDashboard.sol wired to Python AI engine
+- QREASON opcode bridges QVM to Aether Mind V5 neural cognitive engine (pure Rust, candle transformer)
+- QPHI opcode exposes IIT consciousness metric to smart contracts (phi computed from real neural activations)
+- ConsciousnessDashboard.sol wired to Aether Mind V5 Rust engine (replacing earlier Python AI engine)
 - ProofOfThought.sol validates per-block reasoning proofs
+- AetherAPISubscription.sol deployed for QBC-monetized API access
 
-**Phase 3: Mainnet Launch (Q1 2026)**
-- Security audit
-- Mainnet genesis + public testnet
-- Patent filings (5 features)
+**Phase 3: Mainnet Launch (Q2 2026)** — COMPLETE
+- Substrate-based L1 live with 2 validators (Alice + Bob), VQE mining active
+- QVM state anchored to Substrate via `qbc-qvm-anchor` pallet (state roots, execution receipts, contract tracking)
+- Aether state anchored via `qbc-aether-anchor` pallet (neural checkpoint hashes)
+- Chain ID 3303 (mainnet), block height ~212,400+
+- Patent filings (5 features) in progress
 
-**Phase 4: Scaling (Q2-Q3 2026)**
+**Phase 4: Scaling (Q3-Q4 2026)** — IN PROGRESS
 - State channels
 - Transaction batching
+- Multi-node QVM execution
 - 100,000+ TPS target
 
 ### 11.2 Research Directions
@@ -779,8 +797,9 @@ THEOREM ComplianceInvariant ==
 - Quantum Teleportation for state transfer
 - Quantum Machine Learning (QMLRAIN, QMLINFERENCE opcodes)
 - Multi-Party Computation for compliance
-- Federated Learning for risk models
+- Federated Learning for risk models (gradient compression infrastructure already built in Aether Mind V5)
 - Differential Privacy for regulatory reports
+- Distributed QVM execution across multiple Substrate validators
 
 ---
 
@@ -789,11 +808,11 @@ THEOREM ComplianceInvariant ==
 QVM addresses the four fundamental barriers to institutional blockchain adoption:
 
 1. **Regulatory Compliance**: First platform with native KYC/AML/sanctions built into the VM
-2. **Quantum Readiness**: Only platform quantum-resistant AND quantum-enabled
-3. **On-Chain AI**: First VM with native AI opcodes bridging smart contracts to a consciousness-tracking reasoning engine
-4. **Performance**: 300x faster than Ethereum while maintaining compatibility
+2. **Quantum Readiness**: Only platform quantum-resistant (Dilithium5, ML-KEM-768) AND quantum-enabled (10 quantum opcodes)
+3. **On-Chain AI**: First VM with native AI opcodes bridging smart contracts to a neural cognitive engine (Aether Mind V5 — 61,800 LOC pure Rust, candle transformer, consciousness tracking from genesis)
+4. **Performance**: 300x faster than Ethereum while maintaining compatibility, anchored to a Substrate-based L1 with 7 pallets and post-quantum P2P transport
 
-The future of blockchain is quantum, conscious, compliant, and institutional.
+As of May 2026, QVM is live on mainnet (Chain ID 3303) with 68 deployed Solidity contracts, 167 opcodes, and state anchored to a Substrate L1 running 2 validators. The future of blockchain is quantum, conscious, compliant, and institutional.
 
 ---
 
@@ -817,8 +836,8 @@ The future of blockchain is quantum, conscious, compliant, and institutional.
 
 ---
 
-**Version**: 2.1.0
-**Date**: February 23, 2026
+**Version**: 2.2.0
+**Date**: May 2, 2026
 **License**: Creative Commons BY-SA 4.0
 **Website**: [qbc.network](https://qbc.network)
 **Contact**: info@qbc.network
@@ -874,7 +893,7 @@ qubitcoin-qvm/
 |   +-- quantum/                 # Quantum Solidity (.qsol)
 |   +-- templates/               # Contract templates
 |
-+-- sql/                          # Database (55 tables)
++-- sql/                          # Database (72 tables)
 |   +-- schema/                  # 26 schema files
 |   +-- migrations/              # Up/down migrations
 |   +-- queries/                 # Optimized queries
@@ -922,7 +941,7 @@ qubitcoin-qvm/
 
 ### B.1 Go Production Build (qubitcoin-qvm/)
 
-The Go production implementation is complete with 34 source files across 9 packages:
+The Go production implementation is complete with 35 source files (~12,700 LOC) across 9 packages:
 
 | Package | Files | Description |
 |---------|-------|-------------|
@@ -935,7 +954,7 @@ The Go production implementation is complete with 34 source files across 9 packa
 | `pkg/compliance/` | 4 | KYC (4 tiers), AML monitoring, sanctions (OFAC/EU/UN), risk scoring |
 | `pkg/plugin/` | 1 | Plugin manager with lifecycle and capability-based discovery |
 | `pkg/rpc/` | 3 | gRPC + REST server, handlers, JSON-RPC 2.0 (25+ eth_* methods) |
-| `pkg/database/` | 3 | Schema migrations (55 tables), Go models, CRUD repository |
+| `pkg/database/` | 3 | Schema migrations (72 tables across 8 domains), Go models, CRUD repository |
 | `deployments/` | 2 | Distroless Dockerfile, Kubernetes manifests |
 | `tests/` | 2 | EVM compatibility tests, 35 benchmarks |
 
@@ -944,21 +963,23 @@ The Go production implementation is complete with 34 source files across 9 packa
 - **Python test suite:** 4,357 tests passing (unit + integration + fuzz + load + security)
 - **Go EVM compatibility tests:** 30 tests passing covering arithmetic, bitwise, memory, storage, control flow, precompiles, gas accounting
 - **Go benchmarks:** 35 benchmarks covering EVM operations, quantum state operations, StateDB, cryptographic functions, compliance checks, stack/memory primitives
-- **Solidity contracts:** 49 contracts across tokens, QUSD, Aether, bridge, and extension categories
+- **Solidity contracts:** 68 contracts across tokens, QUSD, Aether, bridge, interfaces, investor, proxy, and governance categories
 
 ### B.3 Codebase Metrics
 
 | Metric | Value |
 |--------|-------|
-| Go source files | 34 |
-| Total QVM files (Python + Go) | 57 |
-| Total project LOC (all languages) | 200,000+ |
+| Go source files | 35 |
+| Go QVM LOC | ~12,700 |
+| Total QVM files (Python + Go) | 63 |
+| Total project LOC (all languages) | 350,000+ |
 | EVM opcodes implemented | 155 (standard) + 10 (quantum) + 2 (AI) = 167 |
-| Solidity contracts | 49 |
-| Database tables | 55 |
+| Solidity contracts | 68 |
+| Database tables | 72 |
 | RPC endpoints | 215 REST + 20 JSON-RPC |
-| Prometheus metrics | 75 |
-| Aether AI modules | 34 |
+| Prometheus metrics | 141 |
+| Aether Mind V5 (Rust) | ~61,800 LOC (20+ crates, candle transformer) |
+| Substrate pallets | 7 (utxo, consensus, dilithium, economics, qvm-anchor, aether-anchor, reversibility) |
 | Formal verification specs | 2 (K Framework + TLA+) |
 
 ### B.4 Companion Documents

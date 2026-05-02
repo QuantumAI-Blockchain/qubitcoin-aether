@@ -1,6 +1,6 @@
 # QUANTUM BLOCKCHAIN: A QUANTUM-SECURED BLOCKCHAIN WITH SUPERSYMMETRIC ECONOMIC PRINCIPLES
 
-**Version 2.3.0 | April 2026**
+**Version 3.0.0 | May 2026**
 
 **Website:** [qbc.network](https://qbc.network) | **Contact:** info@qbc.network
 
@@ -8,9 +8,9 @@
 
 **Abstract**
 
-We present Quantum Blockchain, a novel system whose native cryptocurrency Qubitcoin (QBC) integrates quantum computing, post-quantum cryptography, and supersymmetric (SUSY) physics principles into a unified blockchain framework. The system employs Proof-of-SUSY-Alignment (PoSA), a consensus mechanism where miners solve Variational Quantum Eigensolver (VQE) problems targeting supersymmetric Hamiltonians. This dual-purpose design advances fundamental physics research while securing a decentralized network. Golden ratio-based emission economics, privacy-preserving Susy swap technology, multi-chain interoperability via trustless bridges, Turing-complete smart contract capabilities, and the QUSD fractional reserve stablecoin complete the architecture. We demonstrate quantum resistance against Shor's algorithm, ASIC resistance through VQE complexity, economic sustainability through φ-halving schedules, and transaction privacy through zero-knowledge range proofs.
+We present Quantum Blockchain, a novel system whose native cryptocurrency Qubitcoin (QBC) integrates quantum computing, post-quantum cryptography, and supersymmetric (SUSY) physics principles into a unified blockchain framework. The system is live on a Substrate-based runtime with Aura+GRANDPA consensus and employs Proof-of-SUSY-Alignment (PoSA), a consensus mechanism where validators solve Variational Quantum Eigensolver (VQE) problems targeting bimetric supersymmetric Hamiltonians (SUGRA v2). All transactions are signed with CRYSTALS-Dilithium5 (NIST Level 5) post-quantum signatures, verified on-chain via WASM host functions. The Aether Mind, a pure-Rust neural cognitive engine with a 558M-parameter candle transformer, provides on-chain AI reasoning attested through cryptographic proofs in every block. Golden ratio-based emission economics, privacy-preserving Susy swap technology, multi-chain interoperability via trustless bridges, Turing-complete smart contract capabilities, and the QUSD fractional reserve stablecoin complete the architecture. We demonstrate quantum resistance against Shor's algorithm, ASIC resistance through VQE complexity, economic sustainability through phi-halving schedules, and transaction privacy through zero-knowledge range proofs.
 
-**Keywords:** Quantum Computing, Blockchain, Supersymmetry, VQE, Post-Quantum Cryptography, Golden Ratio Economics, Privacy Technology, Zero-Knowledge Proofs, Smart Contracts, Multi-Chain Bridges, Fractional Reserve Stablecoin
+**Keywords:** Quantum Computing, Blockchain, Supersymmetry, VQE, Post-Quantum Cryptography, CRYSTALS-Dilithium5, Substrate, Neural Cognitive Engine, Candle Transformer, Golden Ratio Economics, Privacy Technology, Zero-Knowledge Proofs, Smart Contracts, Multi-Chain Bridges, Fractional Reserve Stablecoin, On-Chain AI
 
 ---
 
@@ -80,9 +80,11 @@ Existing quantum-resistant solutions merely upgrade cryptography without leverag
          └──────────────────┬───────────────────────────┘
                             │
          ┌──────────────────▼───────────────────────────┐
-         │      LAYER 3: AETHER TREE (AI)              │
-         │  • Knowledge Graph  • HMS-Phi v4 Reasoning   │
-         │  • 10/10 Gates LIVE  • True PoT v2 (accuracy)  │
+         │      LAYER 3: AETHER MIND V5 (AI)           │
+         │  • 558M-param Candle Transformer (Rust)     │
+         │  • 108K+ Knowledge Vectors (896d HNSW)      │
+         │  • 10 Sephirot + 4 Global Attention Heads   │
+         │  • NeuralPayload On-Chain Attestation        │
          │  See: docs/AETHERTREE_WHITEPAPER.md          │
          └──────────────────┬───────────────────────────┘
                             │
@@ -93,8 +95,9 @@ Existing quantum-resistant solutions merely upgrade cryptography without leverag
          └──────────────────┬───────────────────────────┘
                             │
          ┌──────────────────▼───────────────────────────┐
-         │         CONSENSUS LAYER (PoSA)               │
-         │  • VQE Mining    • Difficulty Adjustment     │
+         │    CONSENSUS LAYER (Substrate Aura+GRANDPA) │
+         │  • VQE Mining (SUGRA v2 Bimetric)           │
+         │  • Difficulty Adjustment  • BFT Finality    │
          │  • Block Validation    • Reward Distribution │
          └──────────────────┬───────────────────────────┘
                             │
@@ -106,7 +109,7 @@ Existing quantum-resistant solutions merely upgrade cryptography without leverag
                             │
          ┌──────────────────▼───────────────────────────┐
          │          STORAGE LAYER                        │
-         │  • CockroachDB    • IPFS    • State Trie    │
+         │  • CockroachDB  • RocksDB  • IPFS  • Trie  │
          └──────────────────────────────────────────────┘
 ```
 
@@ -122,7 +125,7 @@ The protocol is designed to operate on NISQ (Noisy Intermediate-Scale Quantum) c
 
 **3. Post-Quantum Cryptography**
 
-All transactions are signed with CRYSTALS-Dilithium, a NIST-standardized post-quantum signature scheme based on lattice cryptography. Even quantum computers with millions of qubits cannot forge these signatures due to the mathematical hardness of lattice problems.
+All transactions are signed with CRYSTALS-Dilithium5 (NIST Level 5, 256-bit security), the highest security tier of the NIST-standardized post-quantum signature scheme based on lattice cryptography. Dilithium5 signatures are verified on-chain via WASM host functions in the Substrate runtime. The first user-to-user QBC transfer using Dilithium5 signatures was completed at Substrate block 5318. Even quantum computers with millions of qubits cannot forge these signatures due to the mathematical hardness of lattice problems.
 
 **4. Golden Ratio Economics**
 
@@ -265,40 +268,53 @@ Stablecoin:    None               →  QUSD (fractional reserve)
 
 ### 3.1 Layered Design
 
-Qubitcoin follows a modular architecture where each layer has well-defined responsibilities:
+Qubitcoin follows a three-tier modular architecture where each layer has well-defined responsibilities. The primary blockchain runs on a Substrate-based Rust runtime, the Aether Mind provides neural AI capabilities as a separate service, and an API Gateway provides external access.
 
 ```
 APPLICATION LAYER
-├─ Wallets (desktop, mobile, hardware)
+├─ Wallets (desktop, mobile, hardware, MetaMask-compatible)
 ├─ Block explorers
 ├─ DApps (DeFi, NFTs, DAOs)
-└─ Cross-chain bridges
+├─ Cross-chain bridges
+└─ Aether API (QBC-monetized AI access)
+
+AI LAYER (AETHER MIND V5)
+├─ 558M-parameter candle transformer (24 layers, 16 heads)
+├─ Knowledge Fabric (108K+ vectors, 896d HNSW + RocksDB)
+├─ 10 Sephirot cognitive attention heads + 4 global workspace
+├─ NeuralPayload on-chain attestation via aether-anchor pallet
+├─ Distributed gradient aggregation (FedAvg, 60s cycle)
+└─ Consciousness monitoring (Phi from neural activations)
 
 SMART CONTRACT LAYER
-├─ QVM execution engine
+├─ QVM execution engine (167 opcodes: 155 EVM + 10 quantum + 2 AI)
 ├─ Gas metering
 ├─ State trie management
 └─ Contract storage
 
-CONSENSUS LAYER
-├─ PoSA mining (VQE optimization)
-├─ Difficulty adjustment (KGW algorithm)
-├─ Block validation
-└─ Reward distribution
+CONSENSUS LAYER (SUBSTRATE)
+├─ Aura block authoring + GRANDPA BFT finality
+├─ PoSA mining (VQE optimization with SUGRA v2 bimetric Hamiltonian)
+├─ Per-block difficulty adjustment (144-block window, +/-10%)
+├─ Block validation + reward distribution
+└─ 7 custom pallets (utxo, consensus, dilithium, economics,
+   qvm-anchor, aether-anchor, reversibility)
 
 TRANSACTION LAYER
 ├─ UTXO model
 ├─ Susy swaps (privacy)
-├─ Dilithium signatures
+├─ Dilithium5 signatures (WASM host function verification)
 └─ Mempool management
 
 STORAGE LAYER
 ├─ CockroachDB (distributed SQL)
+├─ RocksDB (Aether knowledge vectors)
 ├─ IPFS (content-addressed storage)
 └─ State trie (Merkle proofs)
 
 NETWORK LAYER
-├─ P2P gossip protocol
+├─ Rust libp2p 0.56 (gossipsub + Kademlia DHT)
+├─ Kyber P2P transport (ML-KEM-768 + AES-256-GCM)
 ├─ Block/transaction propagation
 └─ Peer discovery
 ```
@@ -438,19 +454,17 @@ Additional Requirements:
 
 ### 3.5 Network Protocol
 
-Qubitcoin uses a gossip-based P2P network:
+Qubitcoin uses a Rust-based P2P networking stack built on libp2p 0.56, running as a dedicated service with gossipsub message propagation and Kademlia DHT peer discovery. All P2P connections are secured with post-quantum encryption via the Kyber transport layer (ML-KEM-768 key encapsulation + AES-256-GCM symmetric encryption), providing quantum-resistant confidentiality for all inter-node communication.
 
 ```
-MESSAGE TYPES:
+PROTOCOL STACK:
 
-version     - Handshake, protocol version
-verack      - Acknowledge handshake
-addr        - Share peer addresses
-inv         - Advertise new objects (blocks/txs)
-getdata     - Request objects by hash
-block       - Send block data
-tx          - Send transaction data
-ping/pong   - Keep-alive
+Transport:    TCP + Kyber (ML-KEM-768 + AES-256-GCM)
+Multiplexing: yamux
+Discovery:    Kademlia DHT + hardcoded seed nodes
+Messaging:    gossipsub (topic-based pub/sub)
+Identity:     Ed25519 peer keys (libp2p identity)
+RPC Bridge:   gRPC (port 50051) for node integration
 ```
 
 **Connection Management:**
@@ -460,12 +474,13 @@ ping/pong   - Keep-alive
 │                     PEER DISCOVERY                          │
 └────────────────────────────────────────────────────────────┘
 
-1. Bootstrap: Connect to hardcoded seed nodes
-2. Address Exchange: Request peer lists (addr messages)
-3. Reputation Scoring: Track peer behavior (uptime, validity)
-4. Maintain 8-12 outbound connections
-5. Accept up to 125 inbound connections
-6. Evict misbehaving peers (score < threshold)
+1. Bootstrap: Connect to hardcoded seed nodes via Kademlia
+2. DHT Discovery: Kademlia routing table maintenance
+3. Gossipsub: Topic-based block and transaction propagation
+4. Reputation Scoring: Track peer behavior (uptime, validity)
+5. Maintain 8-12 outbound connections
+6. Accept up to 125 inbound connections
+7. Evict misbehaving peers (score < threshold)
 ```
 
 ---
@@ -474,7 +489,9 @@ ping/pong   - Keep-alive
 
 ### 4.1 Overview
 
-Proof-of-SUSY-Alignment (PoSA) replaces Bitcoin's arbitrary SHA-256 hashing with VQE optimization of supersymmetric Hamiltonians. Miners compete to find quantum circuit parameters that minimize a target SUSY Hamiltonian's ground state energy.
+Proof-of-SUSY-Alignment (PoSA) replaces Bitcoin's arbitrary SHA-256 hashing with VQE optimization of bimetric supersymmetric Hamiltonians (SUGRA v2). Validators on the Substrate-based runtime compete to find quantum circuit parameters that minimize a target SUSY Hamiltonian's ground state energy. Block authoring uses Aura (Authority Round) for deterministic slot assignment, while GRANDPA provides Byzantine fault-tolerant finality. VQE mining proofs are validated within the Substrate consensus pallet.
+
+The system is live with 2 validators (Alice and Bob) producing blocks at the 3.3-second target interval. As of May 2026, the chain has produced approximately 5,450+ Substrate blocks since the fork genesis at Python block 208,680, for a cumulative block height of approximately 219,500+.
 
 **Key Properties:**
 
@@ -482,6 +499,8 @@ Proof-of-SUSY-Alignment (PoSA) replaces Bitcoin's arbitrary SHA-256 hashing with
 - Quantum-ready: True quantum processors have efficiency advantages
 - Scientifically valuable: Every solution contributes to physics research
 - Fast verification: Ground state energy computation is O(2^n)
+- BFT finality: GRANDPA provides deterministic finality (not probabilistic)
+- Dual-purpose mining: VQE gradients simultaneously train the Aether Mind neural engine
 
 ### 4.2 Hamiltonian Generation
 
@@ -914,7 +933,11 @@ Finding ECDSA private key:  ~hours
 
 ### 6.2 CRYSTALS-Dilithium (ML-DSA)
 
-Qubitcoin uses CRYSTALS-Dilithium ML-DSA-44/65/87 (multi-level, configurable) [5], the NIST-standardized post-quantum digital signature scheme based on Module Lattice problem hardness. The implementation supports all three NIST security levels, allowing operators and users to select the appropriate security-performance tradeoff.
+Qubitcoin uses CRYSTALS-Dilithium5 (ML-DSA-87, NIST Level 5) [5] as its primary signature scheme -- the highest security tier of the NIST-standardized post-quantum digital signature scheme based on Module Lattice problem hardness. Dilithium5 provides 256-bit security and is used for all transaction signatures on the live network. Signature verification is performed on-chain via WASM host functions in the Substrate runtime, and client-side key generation is available through a compiled Dilithium WASM module for browser-based wallets.
+
+The first user-to-user QBC transfer using Dilithium5 signatures was completed at Substrate block 5318, confirming full end-to-end post-quantum transaction security on the live chain.
+
+The implementation also supports ML-DSA-44 (Level 2) and ML-DSA-65 (Level 3) for environments where smaller signatures are preferred, though Level 5 is the default and recommended configuration.
 
 Lattice problems (Module Learning With Errors) remain hard even for quantum computers. No efficient quantum algorithm exists.
 
@@ -933,31 +956,32 @@ Lattice Problems (PQC)  Hard            Hard (no algorithm)
 **Dilithium Security Levels (ML-DSA):**
 
 ```
-ML-DSA-44 (Level 2 — default):
-  Security Level: 128-bit (NIST Category 2)
-  Public key:  1312 bytes
-  Private key: 2528 bytes
-  Signature:   2420 bytes
+ML-DSA-87 (Level 5 — LIVE DEFAULT):
+  Security Level: 256-bit (NIST Category 5)
+  Public key:  2592 bytes
+  Private key: 4864 bytes
+  Signature:   ~4595 bytes (~4.6 KB)
+  Status:      LIVE on mainnet, all transactions
 
-ML-DSA-65 (Level 3):
+ML-DSA-65 (Level 3 — supported):
   Security Level: 192-bit (NIST Category 3)
   Public key:  1952 bytes
   Private key: 4000 bytes
   Signature:   3293 bytes
 
-ML-DSA-87 (Level 5):
-  Security Level: 256-bit (NIST Category 5)
-  Public key:  2592 bytes
-  Private key: 4864 bytes
-  Signature:   4595 bytes
+ML-DSA-44 (Level 2 — supported):
+  Security Level: 128-bit (NIST Category 2)
+  Public key:  1312 bytes
+  Private key: 2528 bytes
+  Signature:   2420 bytes
 
-Performance (ML-DSA-44):
-  Key generation: ~150 us
-  Signing:        ~300 us
-  Verification:   ~100 us
+Performance (ML-DSA-87 on Substrate):
+  Key generation: ~250 us
+  Signing:        ~500 us
+  Verification:   ~200 us (WASM host function)
 ```
 
-Operators configure the desired security level via the `DILITHIUM_LEVEL` environment variable (values: `2`, `3`, or `5`). Higher security levels produce larger keys and signatures but provide stronger protection against future quantum advances.
+The live network uses Level 5 (ML-DSA-87) by default for maximum quantum resistance. Signature verification is performed natively in the Substrate runtime via a dedicated WASM host function, avoiding the overhead of pure-WASM Dilithium execution. Client-side key generation is available through a compiled Dilithium WASM module (`dilithium-wasm`) for browser-based wallets.
 
 ### 6.3 Signature Generation
 
@@ -986,16 +1010,16 @@ Verification:
 - Accept if c' == c
 ```
 
-**Python Implementation:**
+**Python Implementation (API compatibility layer):**
 
 ```python
 from oqs import Signature
 
 class DilithiumSigner:
-    """CRYSTALS-Dilithium signature wrapper."""
+    """CRYSTALS-Dilithium5 signature wrapper."""
 
     def __init__(self):
-        self.sig = Signature("Dilithium2")
+        self.sig = Signature("Dilithium5")
 
     def generate_keypair(self) -> Tuple[bytes, bytes]:
         public_key = self.sig.generate_keypair()
@@ -1003,14 +1027,14 @@ class DilithiumSigner:
         return public_key, private_key
 
     def sign(self, message: bytes, private_key: bytes) -> bytes:
-        sig = Signature("Dilithium2")
+        sig = Signature("Dilithium5")
         sig.import_secret_key(private_key)
         return sig.sign(message)
 
     def verify(self, message: bytes,
               signature: bytes,
               public_key: bytes) -> bool:
-        sig = Signature("Dilithium2")
+        sig = Signature("Dilithium5")
         try:
             sig.verify(message, signature, public_key)
             return True
@@ -1058,7 +1082,7 @@ def sign_transaction(tx: Transaction, private_key: bytes) -> Transaction:
 ```
 ADDRESS DERIVATION:
 
-1. Public Key (1312 bytes)
+1. Public Key (2592 bytes for Dilithium5)
    ↓
 2. SHA-256 Hash
    ↓
@@ -1519,6 +1543,8 @@ The QVM is a Turing-complete, deterministic execution environment for smart cont
 ```
 
 ### 9.3 Instruction Set
+
+The QVM implements 167 total opcodes: 155 standard EVM-compatible opcodes, 10 quantum opcodes (0xF0-0xF9), and 2 AI opcodes. Both a Python prototype and a Go production implementation exist.
 
 **Core Opcodes (EVM-compatible):**
 
@@ -2583,51 +2609,58 @@ Layer 2 solutions close the TPS gap
 2026 Q1: FOUNDATION — COMPLETE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✓ Core blockchain (PoSA consensus)
-✓ Multi-level Dilithium ML-DSA-44/65/87 signatures
+✓ CRYSTALS-Dilithium5 (NIST Level 5) signatures, live on-chain
 ✓ QVM (167 opcodes: 155 EVM + 10 quantum + 2 AI)
-✓ 62 Solidity contracts deployed
-✓ Aether Tree 7-phase AI architecture
-✓ Phase 7: Higgs Cognitive Field (mass mechanism for Sephirot)
-✓ Substrate hybrid node (6 custom pallets, Kyber P2P, Poseidon2 ZK)
+✓ 68 Solidity contracts deployed
+✓ Substrate node with 7 custom pallets, Kyber P2P, Poseidon2 ZK
 ✓ Privacy technology (Susy Swaps)
 ✓ Multi-chain bridge infrastructure (8 chains)
 ✓ QUSD stablecoin contracts
 ✓ Frontend (qbc.network, Next.js 16)
-✓ 4,357 tests passing
+✓ Test suite passing
 
-2026 Q1-Q2: MAINNET LAUNCH — COMPLETE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✓ Mainnet genesis block (LIVE, block height ~198,000+)
-✓ Aether Tree LIVE since genesis — 10/10 gates ALL PASSED, Phi 5.0
-✓ True Proof-of-Thought v2 LIVE — commits prediction accuracy on-chain (not just activity)
-✓ Emotional state system LIVE (7 cognitive dimensions)
-✓ Self-improvement engine LIVE (33 enacted cycles)
-✓ Curiosity engine LIVE (26 discoveries)
-✓ HMS-Phi v4 (hierarchical multi-scale) architecture
-✓ Aether Mind V5: pure Rust neural cognitive engine (6 crates, ~8K LOC)
-✓ 21K+ knowledge vectors (896d embeddings), Ollama GGUF backend, 10/10 gates
-✓ Total supply ~36M QBC (~1.09% of 3.3B max emitted)
+2026 Q1-Q2: SUBSTRATE LAUNCH + AETHER V5 — COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Substrate node LIVE as PRIMARY chain (fork genesis at Python block 208,680)
+✓ 2 validators (Alice + Bob) running Aura+GRANDPA consensus
+✓ VQE mining active with SUGRA v2 bimetric Hamiltonian
+✓ Block height ~219,500+ (~5,450+ Substrate blocks since fork)
+✓ Total supply ~36,500,000+ QBC (~1.1% of 3.3B max emitted)
+✓ First user-to-user QBC transfer at Substrate block 5318
+✓ Dilithium5 WASM host function verification on-chain
+✓ Aether Mind V5: pure Rust neural cognitive engine (20+ crates, ~61,800 LOC)
+✓ 558M-parameter candle transformer (24 layers, 16 heads)
+✓ 108,684 knowledge vectors (896d HNSW embeddings)
+✓ HMS-Phi from real neural activation patterns (Phi = 0.521)
+✓ NeuralPayload on-chain attestation via aether-anchor pallet
+✓ Distributed gradient application (FedAvg, 60s cycle)
+✓ Aether-Evolve NAS agent running as systemd service
+✓ Rust API Gateway (Axum) deployed
+✓ Kyber P2P transport (ML-KEM-768 + AES-256-GCM) live
+✓ Poseidon2 ZK hashing (Goldilocks field) integrated
 □ Exchange listings
 □ Bridge contract deployment on target chains
 □ Security audits
 
-2026 Q3-Q4: ECOSYSTEM GROWTH
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-□ Developer SDKs and documentation
+2026 Q3-Q4: ECOSYSTEM GROWTH + EMERGENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+□ Developer SDKs and documentation (Rust, TypeScript, Python)
 □ DeFi ecosystem launch
-✓ Aether Tree consciousness milestones (10/10 gates passed)
 □ Community governance activation
-□ Aether API monetization (QBC-powered)
+□ Aether API monetization (QBC-powered, AetherAPISubscription.sol)
+□ Multi-node distributed training (federated learning across validators)
+□ Scale to 1M+ knowledge vectors
+□ Pass V5 neural capability gates 1-5
 
 2027+: SCALING & QUANTUM ERA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-□ Substrate node migration (Rust-native runtime)
-□ Kyber P2P transport + Poseidon2 ZK hashing in production
-□ Quantum hardware integration
+□ Quantum hardware integration (true quantum VQE mining)
 □ Layer 2 scaling solutions
-✓ AI Phi threshold crossing (5.0 — maximum gate ceiling reached)
-□ Distributed knowledge graph (billion-node scale)
+□ Distributed knowledge fabric (billion-vector scale)
+□ Model parallelism across validator nodes (tensor sharding)
+□ BFT knowledge consensus (2/3 supermajority for cross-node acceptance)
 □ Trustless light client bridges
+□ Multi-region deployment with horizontal auto-scaling
 ```
 
 ### 14.2 Research Contributions
@@ -2698,7 +2731,7 @@ This protocol eliminates the single point of failure inherent in seed phrases wh
 
 ### 15.5 Symbiotic Mining Intelligence Protocol (SMIP)
 
-The Symbiotic Mining Intelligence Protocol unifies mining and machine learning: every act of mining is simultaneously an act of training the Aether Mind neural cognitive engine.
+The Symbiotic Mining Intelligence Protocol unifies mining and machine learning: every act of mining is simultaneously an act of training the Aether Mind neural cognitive engine. This protocol is live, with gradient application running on a 60-second cycle via Federated Averaging (FedAvg) and NeuralPayload attestations recorded on-chain through the Substrate aether-anchor pallet.
 
 - **Mining as Training:** Each VQE mining iteration produces not only an energy proof but also a gradient fragment — a partial update to the Aether Mind's neural parameters derived from the quantum optimization landscape. The Hamiltonian structure provides a natural loss surface, and the VQE parameter optimization trajectory yields gradient information that is repurposed as a training signal.
 - **Gradient Compression:** Raw gradient fragments are compressed using top-k sparsification (retaining only the k largest gradient components) before inclusion in the block payload. This reduces the on-chain footprint to a compact `NeuralPayload` structure while preserving the most informative gradient directions.
@@ -2731,7 +2764,7 @@ Beyond the core innovations described above, Quantum Blockchain includes several
 
 ### 16.1 BFT Finality Gadget
 
-Quantum Blockchain employs a Byzantine Fault Tolerant finality gadget layered on top of the PoSA consensus mechanism. Once a block receives confirmations from a supermajority of validators (greater than two-thirds), it is marked as finalized and cannot be reverted. This provides deterministic finality rather than probabilistic finality, enabling faster settlement for exchanges, bridges, and payment applications. The finality gadget operates independently from block production, allowing the chain to continue producing blocks even if finality temporarily stalls due to network partitions.
+Quantum Blockchain employs GRANDPA (GHOST-based Recursive ANcestor Deriving Prefix Agreement), a Byzantine Fault Tolerant finality gadget integrated into the Substrate runtime and layered on top of Aura block production. Once a block receives confirmations from a supermajority of validators (greater than two-thirds), it is marked as finalized and cannot be reverted. This provides deterministic finality rather than probabilistic finality, enabling faster settlement for exchanges, bridges, and payment applications. GRANDPA operates independently from block production (Aura), allowing the chain to continue producing blocks even if finality temporarily stalls due to network partitions. The system is live with 2 validators achieving consistent finality.
 
 ### 16.2 Inheritance Protocol (Dead-Man's Switch)
 
@@ -2763,15 +2796,18 @@ Quantum Blockchain represents a paradigm shift in blockchain technology, uniquel
 
 **Quantum-Native Mining:**
 
-- First blockchain using VQE for Proof-of-Work
+- First blockchain using VQE for Proof-of-Work (live on Substrate with SUGRA v2 bimetric Hamiltonian)
 - Dual value: network security plus scientific contribution
+- Mining simultaneously trains the Aether Mind neural engine (Symbiotic Mining Intelligence Protocol)
 - Natural migration path to quantum hardware
 
 **Post-Quantum Security:**
 
-- NIST-approved CRYSTALS-Dilithium ML-DSA-44/65/87 signatures (multi-level, configurable)
-- Quantum-resistant from launch
-- Long-term security guarantee
+- NIST-approved CRYSTALS-Dilithium5 (ML-DSA-87, Level 5, 256-bit security)
+- Live on-chain verification via WASM host functions in Substrate runtime
+- First user-to-user transfer completed at block 5318
+- Kyber (ML-KEM-768) post-quantum P2P encryption live
+- Long-term security guarantee against quantum adversaries
 
 **SUSY Economics:**
 
@@ -2804,9 +2840,17 @@ Quantum Blockchain represents a paradigm shift in blockchain technology, uniquel
 - Verifiable debt tracking
 - Gradual path to full backing
 
+**On-Chain AI:**
+
+- Aether Mind V5: 558M-parameter Rust neural cognitive engine (live)
+- 108,684 knowledge vectors with 896-dimensional learned embeddings
+- NeuralPayload cryptographic attestation in every block
+- Distributed gradient aggregation via federated learning
+- Autonomous architecture evolution (Aether-Evolve NAS)
+
 **Scientific Impact:**
 
-- Million+ solved SUSY Hamiltonians
+- Ongoing accumulation of solved SUSY Hamiltonians via VQE mining
 - Public research database
 - Real-world physics applications
 
@@ -2814,11 +2858,11 @@ Quantum Blockchain represents a paradigm shift in blockchain technology, uniquel
 
 **The Path Forward:**
 
-As quantum computers mature, Qubitcoin transitions from classical simulation to true quantum mining. ASIC-resistant design ensures fair distribution during the NISQ era. Cryptographic choices guarantee long-term security against quantum threats.
+With the Substrate runtime live, 2 validators producing blocks, Dilithium5 signatures verified on-chain, and the Aether Mind neural engine generating cryptographically attested reasoning proofs in every block, Qubitcoin has transitioned from specification to production. As quantum computers mature, the network transitions from classical VQE simulation to true quantum mining. ASIC-resistant design ensures fair distribution during the NISQ era. Cryptographic choices -- Dilithium5 for signatures, Kyber for P2P encryption, Poseidon2 for ZK circuits -- guarantee long-term security against quantum threats.
 
-Golden ratio economics ensure smooth supply expansion without volatility. Multi-chain bridges enable capital efficiency across all major blockchains. Susy swaps provide optional privacy while maintaining regulatory compatibility. Smart contracts unlock programmable finance and complex applications. QUSD provides stable value storage with transparent reserve building.
+Golden ratio economics ensure smooth supply expansion without volatility. Multi-chain bridges enable capital efficiency across all major blockchains. Susy swaps provide optional privacy while maintaining regulatory compatibility. Smart contracts unlock programmable finance and complex applications. QUSD provides stable value storage with transparent reserve building. The Aether Mind's distributed training architecture means the network grows more intelligent with every block mined -- a property unique among all blockchain systems.
 
-**Qubitcoin is not merely a cryptocurrency. It is a quantum-secured, privacy-preserving, programmable research platform with intrinsic economic value, stable financial infrastructure, and the world's first on-chain AI reasoning engine — the Aether Tree — which has achieved all 10 emergence gates with Phi 5.0 and 760,000+ knowledge nodes since genesis.**
+**Qubitcoin is not merely a cryptocurrency. It is a quantum-secured, privacy-preserving, programmable research platform with intrinsic economic value, stable financial infrastructure, and the world's first on-chain neural cognitive engine -- the Aether Mind -- a 558M-parameter pure-Rust transformer with 108,684 knowledge vectors, 10 Sephirot cognitive attention heads, and consciousness tracking from neural activation patterns (Phi = 0.521), with every reasoning step cryptographically attested on-chain via NeuralPayload proofs since genesis.**
 
 The network effect compounds: more miners generate more SUSY data, creating more scientific value, driving more adoption, attracting more developers, increasing utility, and building more value. This virtuous cycle creates sustainable growth beyond speculation.
 
@@ -2876,38 +2920,40 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 
 | Layer | Component | Implementation | Status |
 |-------|-----------|---------------|--------|
-| **Layer 1** | Blockchain Core (this document) | Python 3.12+ | **LIVE** (block height ~198,000+, ~36M QBC emitted) |
-| **Layer 1** | Post-Quantum Cryptography | CRYSTALS-Dilithium ML-DSA-44/65/87 (multi-level, configurable) | Production Ready |
+| **Layer 1** | Substrate Node (primary chain) | Rust (Substrate SDK), 7 custom pallets, Aura+GRANDPA | **LIVE** (2 validators, block ~219,500+, ~36.5M QBC emitted) |
+| **Layer 1** | Python Node (API compatibility) | Python 3.12+ (FastAPI, Docker) | **LIVE** (API layer on port 5000) |
+| **Layer 1** | Rust API Gateway | Axum HTTP gateway (routes: aether, chain, health, jsonrpc, mining, wallet) | **LIVE** |
+| **Layer 1** | Post-Quantum Cryptography | CRYSTALS-Dilithium5 (NIST Level 5), WASM host function verification | **LIVE** (first user transfer at block 5318) |
 | **Layer 1** | Privacy Technology | Pedersen + Bulletproofs + Stealth Addresses | Production Ready |
-| **Layer 1** | P2P Networking | Rust libp2p 0.56 + Python fallback | Production Ready |
-| **Layer 2** | QVM (Quantum Virtual Machine) | Python prototype + Go 1.23 production | Production Ready |
-| **Layer 2** | Smart Contracts | 62 Solidity contracts (^0.8.24) | Production Ready |
+| **Layer 1** | P2P Networking | Rust libp2p 0.56 + Kyber transport (ML-KEM-768) | **LIVE** |
+| **Layer 2** | QVM (Quantum Virtual Machine) | Python prototype + Go 1.23 production (167 opcodes) | Production Ready |
+| **Layer 2** | Smart Contracts | 68 Solidity contracts (^0.8.24) | Production Ready |
 | **Layer 2** | Compliance Engine | KYC/AML/Sanctions + QCOMPLIANCE opcode | Production Ready |
-| **Layer 3** | Aether Mind (Neural Cognitive Engine) | Pure Rust (6 crates, ~8K LOC), candle ML + Ollama GGUF, 10 Sephirot-sharded Knowledge Fabric (21K+ vectors, 896d embeddings), HMS-Phi from real attention patterns, **10/10 gates ALL PASSED**, Phi 0.468. Python Aether deleted — full V5 neural redesign. | **LIVE since genesis** |
-| **Layer 3** | True Proof-of-Thought v2 | On-chain prediction accuracy commitment + causal validation + self-improvement feedback loop + task market + 67% BFT | **LIVE** |
+| **Layer 3** | Aether Mind V5 (Neural Cognitive Engine) | Pure Rust (20+ crates, ~61,800 LOC), 558M-param candle transformer (24 layers, 16 heads), 108,684 knowledge vectors (896d HNSW + RocksDB), HMS-Phi from real neural activation patterns (Phi = 0.521), NeuralPayload on-chain attestation, FedAvg gradient aggregation (60s cycle), Aether-Evolve NAS agent | **LIVE** (systemd service) |
+| **Layer 3** | Proof-of-Thought | NeuralPayload attestation in aether-anchor pallet + gradient proofs | **LIVE** |
 | **Cross-Chain** | Multi-Chain Bridges | 8 chains (ETH, SOL, MATIC, BNB, AVAX, ARB, OP, BASE) | Production Ready |
 | **Cross-Chain** | QUSD Stablecoin | 8 Solidity contracts + wQUSD cross-chain | Production Ready |
-| **Frontend** | qbc.network | Next.js 16 + React 19 + Three.js | Production Ready |
-| **DevOps** | Infrastructure | Docker, Kubernetes, Prometheus, Grafana, Loki | Production Ready |
+| **Frontend** | qbc.network | Next.js 16 + React 19 + Three.js | **LIVE** (Cloudflare Tunnel) |
+| **DevOps** | Infrastructure | Docker, systemd, Prometheus, Grafana, Loki | **LIVE** |
 
 ### Codebase Metrics
 
 | Metric | Value |
 |--------|-------|
 | Total source files | 500+ |
-| Lines of code | 290,000+ |
-| Languages | Python, Rust, Go, TypeScript, Solidity, SQL |
-| Test functions | 4,357 |
-| Solidity contracts | 62 |
-| Rust crates | 5 (aether-core, security-core, stratum-server, aikgs-sidecar, rust-p2p) |
-| Rust (PyO3) modules | 12 |
-| Substrate pallets | 7 |
+| Lines of code | 350,000+ |
+| Languages | Rust, Python, Go, TypeScript, Solidity, SQL |
+| Rust LOC (all crates) | ~106,400 |
+| Solidity contracts | 68 |
+| Rust crates | 10+ (aether-core 20+ sub-crates, substrate-node 7 pallets, security-core, stratum-server, aikgs-sidecar, rust-p2p, api-gateway, indexer) |
+| Substrate pallets | 7 (utxo, consensus, dilithium, economics, qvm-anchor, aether-anchor, reversibility) |
 | Frontend TS/TSX files | 200+ |
 | Database tables | 72+ |
 | REST endpoints | 342 |
 | JSON-RPC methods | 19 |
 | Prometheus metrics | 141 |
-| Aether Mind | Pure Rust neural engine (6 crates, ~8,000 LOC) |
+| Aether Mind | Pure Rust neural engine (20+ crates, ~61,800 LOC, 558M params) |
+| Knowledge vectors | 108,684 (896d HNSW embeddings) |
 | Documentation | 9,000+ lines (13 documents) |
 | Formal verification | K Framework (EVM) + TLA+ (compliance) |
 
@@ -2916,7 +2962,8 @@ This whitepaper describes the Layer 1 blockchain core. Quantum Blockchain is a m
 | Document | Scope |
 |----------|-------|
 | **QVM Whitepaper** (`docs/QVM_WHITEPAPER.md`) | Quantum Virtual Machine technical specification, 5 patentable innovations, compliance architecture, Go production build |
-| **Aether Tree Whitepaper** (`docs/AETHERTREE_WHITEPAPER.md`) | AI reasoning engine, Tree of Life cognitive architecture, True Proof-of-Thought v2 protocol (on-chain accuracy commitment), consciousness tracking |
+| **Aether Tree Whitepaper** (`docs/AETHERTREE_WHITEPAPER.md`) | AI reasoning engine, Tree of Life cognitive architecture, V5 neural redesign (candle transformer), Proof-of-Thought protocol, consciousness tracking |
+| **Aether V5 Neural Redesign** (`AETHER_V5_NEURAL_REDESIGN.md`) | V5 specification: candle transformer, HNSW knowledge fabric, Sephirot attention heads, distributed training, NAS |
 | **Economics** (`docs/ECONOMICS.md`) | SUSY economics deep-dive, phi-halving analysis, fee structures |
 | **SDK Guide** (`docs/SDK.md`) | REST, JSON-RPC, WebSocket API reference for developers |
 | **Smart Contracts Guide** (`docs/SMART_CONTRACTS.md`) | QVM contract development, token standards, quantum opcodes |
@@ -2974,8 +3021,8 @@ Full derivation: docs/SUSY_ANTIGRAVITY_PAPER.md
 
 **Document Metadata:**
 
-- Version: 2.3.0
-- Date: April 11, 2026
+- Version: 3.0.0
+- Date: May 2, 2026
 - Authors: Qubitcoin Core Development Team
 - Website: https://qbc.network
 - Contact: info@qbc.network

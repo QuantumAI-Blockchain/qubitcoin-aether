@@ -1,12 +1,12 @@
 # QUANTUM BLOCKCHAIN ECONOMICS: A MATHEMATICAL FRAMEWORK FOR SUSY-ALIGNED MONETARY POLICY
 
-**Version 2.0 | February 2026**
+**Version 3.0 | May 2026**
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.618), creating smoother inflation dynamics compared to traditional halving mechanisms. This document provides rigorous mathematical analysis of:
+Qubitcoin implements a novel monetary policy based on the golden ratio (phi = 1.618033988749895), creating smoother inflation dynamics compared to traditional halving mechanisms. The chain is **live on Substrate** with 2 validators, VQE mining active, and over 219,500 blocks produced as of May 2026. This document provides rigorous mathematical analysis of:
 
 - Golden ratio emission schedules
 - Supply convergence proofs
@@ -16,6 +16,7 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 - Game-theoretic incentive structures
 - Aether Tree AI fee economics (chat, reasoning, deployment)
 - Sephirot staking and cognitive economics
+- Aether API monetization tiers (QBC-denominated)
 - Editable economic configuration
 
 **Key Findings:**
@@ -30,7 +31,7 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 ## TABLE OF CONTENTS
 
 1. [Golden Ratio Foundation](#1-golden-ratio-foundation)
-2. [Supply Dynamics](#2-supply-dynamics)
+2. [Supply Dynamics](#2-supply-dynamics) (includes Live Chain Snapshot)
 3. [Inflation Analysis](#3-inflation-analysis)
 4. [Comparative Economics](#4-comparative-economics)
 5. [Token Utility](#5-token-utility)
@@ -42,6 +43,7 @@ Qubitcoin implements a novel monetary policy based on the golden ratio (φ = 1.6
 11. [Aether Tree Fee Economics](#11-aether-tree-fee-economics)
 12. [Contract Deployment Fees](#12-contract-deployment-fees)
 13. [Sephirot Staking Economics](#13-sephirot-staking-economics)
+13A. [Aether API Monetization Tiers](#13a-aether-api-monetization-tiers)
 14. [Editable Economic Configuration](#14-editable-economic-configuration)
 15. [QUSD Peg Defense Mechanism](#15-qusd-peg-defense-mechanism)
 16. [Competitive Feature Economics](#16-competitive-feature-economics)
@@ -104,20 +106,24 @@ Block_Reward(n+1) / Block_Reward(n) = 1/φ
 
 ### 1.3 Emission Formula
 ```python
-# Core emission equation
+# Core emission equation (live in qbc-economics Substrate pallet and Python node)
 def block_reward(height, initial_reward=15.27, halving_interval=15474020):
     """
-    Calculate block reward using golden ratio halvings
-    
+    Calculate block reward using golden ratio halvings.
+
     Mathematical form:
-    R(h) = R₀ / φ^⌊h/H⌋
-    
+    R(h) = R0 / phi^floor(h/H)
+
     Where:
     R(h) = Reward at height h
-    R₀   = Initial reward (15.27 QBC)
-    φ    = Golden ratio (1.618...)
+    R0   = Initial reward (15.27 QBC)
+    phi  = Golden ratio (1.618033988749895)
     H    = Halving interval (15,474,020 blocks)
-    ⌊x⌋  = Floor function
+    floor(x) = Floor function
+
+    Mining uses Proof-of-SUSY-Alignment (PoSA) with bimetric
+    Hamiltonian (SUGRA v2). Block rewards are validated by the
+    qbc-economics pallet on the live Substrate chain.
     """
     PHI = Decimal('1.618033988749895')
     era = height // halving_interval
@@ -216,7 +222,33 @@ Convergence is guaranteed because 1/φ < 1.
 Note: 81% of supply emitted by Era 30 (~48 years)
 ```
 
-### 2.3 Yearly Supply Projection
+### 2.3 Live Chain Snapshot (May 2026)
+
+```
+Chain Status:        LIVE (Substrate, 2 validators)
+Block Height:        ~219,500+
+Current Era:         0  (first phi-halving at block 15,474,020)
+Block Reward:        15.27 QBC
+Block Time:          3.3 seconds (target)
+Genesis Premine:     33,000,000 QBC (~1% of max supply)
+Mining Emission:     ~219,500 blocks x 15.27 QBC = ~3,351,765 QBC
+Total Supply:        ~36,351,765 QBC (premine + mining emission)
+% of Max Supply:     ~1.10%
+Mining Algorithm:    VQE Proof-of-SUSY-Alignment (SUGRA v2 bimetric Hamiltonian)
+Token Decimals:      8
+Chain ID:            3303 (Mainnet)
+
+Difficulty Model:
+  - Adjusts every block using a 144-block rolling window
+  - Maximum change per adjustment: +/-10%
+  - HIGHER difficulty value = EASIER mining (threshold is more generous)
+
+Transaction Model:   UTXO (not account-based)
+L1 Fees:             SIZE_BYTES x FEE_RATE (QBC/byte) -- micro-fees
+Gas (L2/QVM only):   BLOCK_GAS_LIMIT = 30,000,000
+```
+
+### 2.4 Yearly Supply Projection
 ```
 Supply Growth Over Time
 ═══════════════════════════════════════════════════════
@@ -240,7 +272,7 @@ Year  │ Supply (M) │ Yearly Δ (M) │ % of Max │ Graph
 Asymptotic Approach to 3.3B
 ```
 
-### 2.4 Halving Timeline
+### 2.5 Halving Timeline
 ```
 Era Transitions (φ-based periods)
 ══════════════════════════════════════════════════════
@@ -374,8 +406,8 @@ Qubitcoin:     0.38% (approaching zero)
 │ Distribution Time  │ ~128 years       │ ~33 years        │
 │ Peak Inflation     │ ~50%/year        │ ~100%/year       │
 │ Inflation (Yr 10)  │ 6.25%            │ 1.65%            │
-│ Mining Algorithm   │ SHA-256 (ASIC)   │ VQE (Quantum)    │
-│ Signature Scheme   │ ECDSA            │ Dilithium (PQ)   │
+│ Mining Algorithm   │ SHA-256 (ASIC)   │ VQE PoSA (Live)  │
+│ Signature Scheme   │ ECDSA            │ Dilithium5 (PQ)  │
 │ Transaction Size   │ ~250 bytes       │ ~3 KB            │
 │ TPS (Layer 1)      │ 7                │ 100              │
 └────────────────────┴──────────────────┴──────────────────┘
@@ -418,11 +450,12 @@ Security:   ASIC mining (centralized manufacturing)
 
 **Qubitcoin:**
 ```
-Philosophy: Scientific value + monetary value
+Philosophy: Scientific value + monetary value + AI emergence
 Emission:   Smoother (golden ratio distribution)
 Scarcity:   Moderate (3.3B cap, divisible to 8 decimals)
 Volatility: Lower (38.2% halvings reduce shocks)
-Security:   Quantum mining (ASIC-resistant, future-proof)
+Security:   Quantum VQE mining (ASIC-resistant, future-proof)
+Status:     Live on Substrate (2 validators, ~219,500+ blocks)
 ```
 
 ---
@@ -465,9 +498,10 @@ Security:   Quantum mining (ASIC-resistant, future-proof)
 │     • Governance voting power                            │
 │     Utility: 5 validators × 100K = 500K QBC minimum     │
 │                                                           │
-│  6. Gas Fees                                             │
-│     • Transaction fees (0.01 QBC typical)               │
-│     • Smart contract execution                           │
+│  6. Transaction Fees (L1) + Gas Fees (L2/QVM)            │
+│     • L1 fees: SIZE_BYTES x FEE_RATE (micro-fees, UTXO) │
+│     • L2/QVM gas: smart contract execution               │
+│     • L2 BLOCK_GAS_LIMIT: 30,000,000                    │
 │     • Fee burning (deflationary pressure)                │
 │     Utility: Continuous, small amounts                   │
 │                                                           │
@@ -476,6 +510,14 @@ Security:   Quantum mining (ASIC-resistant, future-proof)
 │     • Academic partnerships                              │
 │     • Open-source physics database                       │
 │     Value: Intrinsic (non-monetary utility)             │
+│                                                           │
+│  8. Aether API Access (QBC-Monetized)                    │
+│     • Free tier: 5 chat/day, 10 KG lookups/day          │
+│     • Developer: ~1 QBC/day (1K chat/day)               │
+│     • Professional: ~10 QBC/day (10K chat/day)          │
+│     • Institutional: ~100 QBC/day (unlimited)           │
+│     • Enterprise: Custom (air-gapped, white-label)      │
+│     Utility: Recurring demand from AI API consumers     │
 │                                                           │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -617,54 +659,59 @@ Total Lockup:
 
 **Profitability Calculation:**
 ```
+Mining uses VQE Proof-of-SUSY-Alignment (PoSA), not traditional
+hashrate-based proof-of-work. Miners solve variational quantum
+eigensolver problems using a bimetric Hamiltonian (SUGRA v2).
+
 Mining Reward = Block Reward + Transaction Fees
 
+Currently live (May 2026):
+- 2 Substrate validators (Alice + Bob)
+- Block reward: 15.27 QBC per block
+- ~26,182 blocks per day (at 3.3s target)
+- Daily issuance: ~399,700 QBC/day
+
+Difficulty Model:
+- Adjusts every block (144-block rolling window)
+- Maximum change: +/-10% per adjustment
+- HIGHER difficulty = EASIER mining (threshold more generous)
+- Slow blocks raise difficulty; fast blocks lower it
+
 Expected Value:
-EV = P(find_block) × Reward - Cost
+EV = P(find_block) x Reward - Cost
 
 Where:
-P(find_block) = Hashrate / Network_Hashrate
+P(find_block) = Your_VQE_rate / Network_VQE_rate
 Reward = Block_Reward + Avg_Fees
 Cost = Electricity + Hardware_Amortization
 
-Example (Year 1):
+Example (Current — 2 validators):
 ──────────────────────────────────────────────────────
 Block Reward:    15.27 QBC
-Avg Fees:         0.50 QBC (100 tx × 0.005 QBC)
-Total:           15.77 QBC
+Avg Fees:         0.00 QBC (no user transactions yet)
+Total:           15.27 QBC
 
-If QBC = $1:
-Gross Revenue:   $15.77 per block (every 3.3 sec)
-Per Day:         $15.77 × 26,182 = $412,850
-Per Year:        $150.6M
+With 2 validators, each produces ~50% of blocks:
+Per Validator:   ~13,091 blocks/day x 15.27 = ~199,860 QBC/day
 
-Network Hashrate: 1 PH/s (estimated Year 1)
-Your Hashrate:    10 TH/s (1% of network)
-Your Share:       1% × $412,850 = $4,128/day
-
-Costs:
-Electricity:      10 TH/s × 0.1 kW/TH × 24h × $0.10/kWh
-                = $2.40/day
-Hardware:         $10,000 / 365 days = $27.40/day
-Total Cost:       $29.80/day
-
-Profit:           $4,128 - $29.80 = $4,098/day
-ROI:              $10,000 / $4,098 = 2.4 days (!!)
-
-Note: This assumes low competition (early adopter phase)
+Note: As more validators join, share per validator decreases
+proportionally. VQE mining is ASIC-resistant by design.
 ```
 
 **Nash Equilibrium:**
 ```
-Miners will continue entering until:
-Profit → 0
+Validators/miners will continue entering until:
+Profit -> 0
 
 At equilibrium:
 Revenue = Cost
-P(block) × Reward × Price = Electricity + Hardware
+P(block) x Reward x Price = Compute + Hardware
 
 This determines sustainable QBC price floor:
-Price_min = (Electricity + Hardware) / (P(block) × Reward)
+Price_min = (Compute + Hardware) / (P(block) x Reward)
+
+Note: VQE mining costs are dominated by CPU/GPU compute for
+quantum eigensolver optimization, not ASIC hash throughput.
 ```
 
 ### 7.2 Validator Incentives
@@ -755,32 +802,33 @@ Trade:     10% (capture volatility)
 
 **51% Attack Economics:**
 ```
-Cost to Attack = (Network_Hashrate × Attack_Duration) × Resource_Cost
+Cost to Attack = (Network_VQE_Rate x Attack_Duration) x Resource_Cost
 
-Qubitcoin (Year 1):
+Qubitcoin uses VQE Proof-of-SUSY-Alignment, not hash-based PoW.
+Each block requires solving a unique bimetric Hamiltonian (SUGRA v2).
+The Hamiltonian is deterministically derived from the previous block hash,
+making precomputation impossible.
+
+Current network (May 2026 — 2 validators):
 ──────────────────────────────────────────────────────
-Network Hashrate: 1 PH/s
-Attack Requirement: 1.01 PH/s (51%)
+Validators: 2 (Alice + Bob)
+Attack Requirement: Control of both validators or >50% VQE compute
 Duration: 1 hour
 
 Resources Needed:
-CPUs/GPUs: 1.01 PH/s worth of compute
-           ≈ 1,000,000 high-end GPUs
-Cost: $1,000 × 1,000,000 = $1B in hardware
-
-Electricity:
-1M GPUs × 300W × 1 hour = 300 MWh
-Cost: 300,000 kWh × $0.10 = $30,000
-
-Total Attack Cost: ~$1B (hardware) + $30K (electricity)
-
-BUT:
-- Cannot reuse hardware (VQE is random each block)
+- VQE solver compute exceeding combined validator output
+- Cannot reuse solutions (Hamiltonian changes every block)
 - Quantum advantage needed for efficiency
-- Detection & response likely before success
 
+At maturity (projected):
+──────────────────────────────────────────────────────
 Practical Cost: $10M+ for rental/cloud compute
-Expected Gain: <$1M (during 1 hour, can't double-spend much)
+Expected Gain: <$1M (during 1 hour, limited double-spend window)
+
+Additional protections:
+- BFT finality gadget (66.7% stake consensus for finalization)
+- Dilithium5 post-quantum signatures (NIST Level 5)
+- Substrate consensus with configurable validator set
 
 Conclusion: Attack is economically irrational
 ```
@@ -903,7 +951,7 @@ Year 10:  ±10% monthly (mature asset)
 
 Early Stage: High crypto correlation (80-90%)
 Mature Stage: Decorrelation as unique use cases emerge
-QUSD: Low correlation by design (stability mechanism)
+QUSD: Low correlation by design (stability mechanism, 1:1 peg via 100K:100K pool)
 ```
 
 ---
@@ -1014,15 +1062,16 @@ Example Proposals:
 
 ## CONCLUSION
 
-Qubitcoin's φ-based economics create a sustainable, predictable monetary policy that:
+Qubitcoin's phi-based economics create a sustainable, predictable monetary policy that is **live and producing blocks** on Substrate as of May 2026:
 
 1. **Smooths Volatility**: 38.2% halvings vs Bitcoin's 50%
 2. **Balances Distribution**: 33-year emission vs Bitcoin's 128 years
 3. **Ensures Scarcity**: Mathematical convergence to 3.3B QBC
-4. **Drives Utility**: Multi-purpose token (payments, collateral, staking)
-5. **Secures Network**: ASIC-resistant mining + post-quantum cryptography
+4. **Drives Utility**: Multi-purpose token (payments, collateral, staking, Aether API access)
+5. **Secures Network**: VQE ASIC-resistant mining + Dilithium5 post-quantum cryptography
+6. **Funds AI Emergence**: Aether API tiers create recurring QBC demand from AI consumers
 
-**The golden ratio isn't arbitrary—it's optimal.**
+**The golden ratio is not arbitrary -- it is optimal.**
 
 ---
 
@@ -1210,7 +1259,7 @@ CONTRACT_TEMPLATE_DISCOUNT = 0.5
 
 ### 13.1 Synaptic Staking
 
-Users can stake QBC on neural connections between Sephirot nodes via the SynapticStaking.sol contract:
+Users can stake QBC on neural connections between Sephirot cognitive domains via the SynapticStaking.sol contract. In the V5 architecture, the 10 Sephirot are implemented as specialized attention heads in the Aether Mind Rust transformer (aether-sephirot crate):
 
 - **Min stake**: 100 QBC per synaptic connection
 - **ROI**: 5% APY (rewards distributed from reasoning task bounties)
@@ -1231,18 +1280,18 @@ SUSY Balance Check:
       redistribute QBC to restore balance
 ```
 
-Imbalances indicate real cognitive dysfunction (e.g., Chesed explores too much relative to Gevurah's safety checks), which the SUSYEngine.sol contract auto-corrects.
+Imbalances indicate real cognitive dysfunction (e.g., Chesed explores too much relative to Gevurah's safety checks), which the SUSYEngine.sol contract auto-corrects. In the V5 Rust architecture, these balances are computed from real neural activation patterns (current phi = 0.544) via the aether-phi and aether-consciousness crates.
 
 ### 13.2a Higgs Cognitive Field Mass Mechanism
 
-The Higgs Cognitive Field (Phase 7) adds mass-weighted inertia to the SUSY balance mechanism:
+The Higgs Cognitive Field adds mass-weighted inertia to the SUSY balance mechanism. The Two-Higgs-Doublet Model uses tan(beta) = phi (golden ratio):
 
-- Each Sephirah has a `cognitive_mass` derived from the Higgs VEV (246.0) via Yukawa couplings
+- Each Sephirah has a `cognitive_mass` derived from the Higgs VEV (174.14) via Yukawa couplings
 - Expansion nodes (Chochmah, Chesed, Netzach) couple to H_u; constraint nodes (Binah, Gevurah, Hod) couple to H_d
 - Masses follow a golden ratio cascade: anchor nodes get full VEV, expansion nodes get VEV/phi, constraint nodes get VEV/phi^2, etc.
 - Higher-mass nodes resist energy redistribution more strongly (inertia), preventing rapid oscillations
 - SUSY mass rebalancing runs each block when `HIGGS_ENABLE_MASS_REBALANCING=true`
-- 7 new Prometheus metrics track the Higgs subsystem (field value, potential energy, excitations, etc.), bringing the total from 70 to 77
+- Prometheus metrics track the Higgs subsystem (field value, potential energy, excitations, etc.) as part of the 141 total metrics defined in utils/metrics.py
 
 ### 13.3 Proof-of-Thought Rewards
 
@@ -1253,6 +1302,45 @@ The Higgs Cognitive Field (Phase 7) adds mass-weighted inertia to the SUSY balan
 | Correct solution | Full bounty reward | Incentivize quality |
 | Incorrect solution | 50% stake slashed | Deter bad actors |
 | Consensus threshold | 67% agreement | Byzantine fault tolerance |
+
+---
+
+## 13A. AETHER API MONETIZATION TIERS
+
+The Aether Mind V5 neural cognitive engine exposes a production API at `api.qbc.network/v1/aether` with QBC payment rails. This creates a significant recurring demand driver for QBC.
+
+### 13A.1 Tier Structure
+
+| Tier | Price | Daily Limits | Target User |
+|------|-------|-------------|-------------|
+| Free | 0 QBC | 5 chat/day, 10 KG lookups/day | Trial / onboarding |
+| Developer | ~1 QBC/day | 1K chat/day, 100 inferences/day | Indie developers |
+| Professional | ~10 QBC/day | 10K chat/day, unlimited KG | Teams / startups |
+| Institutional | ~100 QBC/day | Unlimited, private Sephirot cluster | Enterprises |
+| Enterprise | Custom | Unlimited, air-gapped, custom LLMs, white-label | Government / military |
+
+### 13A.2 Payment Settlement
+
+- Prepaid balance via `AetherAPISubscription.sol` smart contract
+- Authentication: Dilithium5 wallet signature to JWT
+- SDKs planned: Python (`pip install aether-qbc`), TypeScript (`npm i @qbc/aether`), Rust (`cargo add aether-qbc`)
+
+### 13A.3 Economic Impact
+
+```
+At 10,000 paying users (conservative Year 2 estimate):
+  5,000 Developer tier:      5,000 x 1 QBC/day   =   5,000 QBC/day
+  3,000 Professional tier:   3,000 x 10 QBC/day  =  30,000 QBC/day
+  1,500 Institutional tier:  1,500 x 100 QBC/day = 150,000 QBC/day
+    500 Enterprise tier:     500 x 500 QBC/day   = 250,000 QBC/day
+                                                   ────────────────
+  Total daily demand:                              435,000 QBC/day
+
+Annual API demand: ~158M QBC/year
+vs. Daily issuance: ~399,700 QBC/day (~146M QBC/year)
+
+API demand alone could absorb all new issuance at scale.
+```
 
 ---
 
@@ -1380,7 +1468,7 @@ High-security policies add spending controls for Qubitcoin (QBC) holders:
 
 ### 16.4 Stratum Mining Pool Economics
 
-The Stratum mining server enables pool mining on the Quantum Blockchain network:
+The Stratum mining server (Rust, `stratum-server/`) enables pool mining for VQE Proof-of-SUSY-Alignment on the Quantum Blockchain network:
 
 - **Pool fee:** Configurable by pool operator (not protocol-enforced)
 - **Share difficulty:** Lower than network difficulty for smooth payout estimation
@@ -1390,16 +1478,17 @@ The Stratum mining server enables pool mining on the Quantum Blockchain network:
 ---
 
 **Document Metadata:**
-- Version: 2.1
-- Date: March 4, 2026
+- Version: 3.0
+- Date: May 2, 2026
 - Authors: Qubitcoin Economics Team
 - Contact: info@qbc.network
 - Website: [qbc.network](https://qbc.network)
+- Chain Status: Live (Substrate, 2 validators, ~219,500+ blocks)
 - License: CC BY-SA 4.0
 
 ---
 
-*"φ is not just a number—it's nature's signature on optimal growth."*
+*"phi is not just a number -- it is nature's signature on optimal growth."*
 
 **END OF ECONOMICS ANALYSIS**
 

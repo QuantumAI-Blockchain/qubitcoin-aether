@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign, BarChart3, Shield, GitBranch } from "lucide-react";
+import { ArrowLeft, FileText, Cpu, Brain, TrendingUp, DollarSign, BarChart3, Shield, GitBranch, Atom } from "lucide-react";
 
 const C = {
   bg: "#0a0a0f",
@@ -79,6 +79,14 @@ const docs = [
     description:
       "Opt-in confidential transactions — Pedersen commitments, Bulletproofs range proofs, stealth addresses, and deniable RPC endpoints.",
     tags: ["Opt-In", "Pedersen", "Bulletproofs", "Stealth Addresses"],
+  },
+  {
+    title: "SUSY Antigravity Paper",
+    href: "/docs/antigravity",
+    icon: Atom,
+    description:
+      "Gravitational coupling modulation via phase-controlled N=2 broken supergravity — bimetric framework, 9-term VQE Hamiltonian, operator-valued IIT, and patent claims. Live on Substrate mainnet.",
+    tags: ["Bimetric SUGRA", "VQE Mining", "Patent-Pending", "IIT Operator"],
   },
 ];
 
