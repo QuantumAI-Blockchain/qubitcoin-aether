@@ -7954,6 +7954,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "tokio",
+ "vqe-verifier",
 ]
 
 [[package]]

@@ -30,8 +30,9 @@ impl Statevector {
     /// RY(θ) = [[cos(θ/2), -sin(θ/2)],
     ///          [sin(θ/2),  cos(θ/2)]]
     pub fn ry(&mut self, target: usize, theta: f64) {
-        let cos = (theta / 2.0).cos();
-        let sin = (theta / 2.0).sin();
+        let half = theta / 2.0;
+        let cos = libm::cos(half);
+        let sin = libm::sin(half);
         let n = self.state.len();
         let bit = 1 << target;
 

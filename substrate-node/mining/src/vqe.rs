@@ -2,14 +2,21 @@
 //!
 //! Uses the COBYLA derivative-free optimizer to minimize the energy
 //! of a parameterized quantum circuit with respect to a given Hamiltonian.
+//!
+//! CRITICAL: Uses `vqe_verifier`'s simulator/ansatz/hamiltonian for energy
+//! computation so that the mining engine and runtime pallet produce
+//! bit-identical floating-point results. The mining crate's own simulator,
+//! ansatz, and hamiltonian modules exist for unit tests / standalone use,
+//! but COBYLA calls the verifier's code to ensure consensus.
 
-use crate::ansatz::{self, N_PARAMS};
 use crate::hamiltonian::Hamiltonian;
-use crate::simulator::Statevector;
 use rand::Rng;
 
 /// Maximum optimizer iterations.
 pub const MAX_ITER: usize = 200;
+
+/// Number of variational parameters (must match verifier).
+pub const N_PARAMS: usize = vqe_verifier::ansatz::N_PARAMS;
 
 /// Result of a VQE optimization run.
 #[derive(Debug, Clone)]
@@ -21,9 +28,12 @@ pub struct VqeResult {
 }
 
 /// Compute the energy ⟨ψ(θ)|H|ψ(θ)⟩ for given parameters and Hamiltonian.
+///
+/// Uses vqe_verifier's simulator and ansatz to guarantee bit-identical
+/// results with the runtime's verification path.
 pub fn compute_energy(params: &[f64], hamiltonian: &Hamiltonian) -> f64 {
-    let mut sv = Statevector::new(ansatz::N_QUBITS);
-    ansatz::apply_ansatz(&mut sv, params);
+    let mut sv = vqe_verifier::simulator::Statevector::new(vqe_verifier::ansatz::N_QUBITS);
+    vqe_verifier::ansatz::apply_ansatz(&mut sv, params);
 
     let mut energy = 0.0;
     for term in &hamiltonian.terms {

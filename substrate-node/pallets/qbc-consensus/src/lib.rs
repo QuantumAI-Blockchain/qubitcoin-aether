@@ -309,6 +309,13 @@ pub mod pallet {
 
             // ── Hamiltonian Seed Verification ────────────────────────────
             let expected_seed = Self::derive_hamiltonian_seed(block_height);
+            log::info!(
+                target: "runtime::consensus",
+                "Seed check: height={}, expected={:?}, submitted={:?}, parent={:?}, match={}",
+                block_height, expected_seed, vqe_proof.hamiltonian_seed,
+                <frame_system::Pallet<T>>::parent_hash(),
+                vqe_proof.hamiltonian_seed == expected_seed
+            );
             ensure!(
                 vqe_proof.hamiltonian_seed == expected_seed,
                 Error::<T>::InvalidHamiltonianSeed
@@ -337,20 +344,37 @@ pub mod pallet {
             );
 
             // ── VQE Proof Re-Verification ─────────────────────────────────
-            // Use SUGRA v2 Hamiltonian (structured terms) for all blocks.
-            // The v2 Hamiltonian includes H_SUSY + H_bimetric(θ) + H_IIT
-            // plus 2 seed-derived random terms for anti-precomputation.
+            // The runtime is the sole authority on energy computation.
+            // The miner submits params; the runtime recomputes energy itself
+            // and checks computed_energy < difficulty. This eliminates FP
+            // divergence between native (mining) and WASM (runtime) execution.
             let params_vec: sp_std::vec::Vec<i64> = vqe_proof.params.to_vec();
             let theta = NetworkTheta::<T>::get();
+            let computed_energy = vqe_verifier::compute_energy_versioned(
+                &expected_seed,
+                &params_vec,
+                theta,
+                HAMILTONIAN_V2,
+            );
+            let computed_energy = match computed_energy {
+                Some(e) => e,
+                None => {
+                    log::error!(
+                        target: "runtime",
+                        "VQE VERIFY FAILED: invalid params, height={}, seed={:?}",
+                        block_height, expected_seed
+                    );
+                    return Err(Error::<T>::InvalidVqeParams.into());
+                }
+            };
+            log::info!(
+                target: "runtime::consensus",
+                "VQE verify: height={}, computed_energy={}, difficulty_threshold={}, theta={}",
+                block_height, computed_energy, difficulty_threshold, theta
+            );
             ensure!(
-                vqe_verifier::verify_energy_versioned(
-                    &expected_seed,
-                    &params_vec,
-                    vqe_proof.energy,
-                    theta,
-                    HAMILTONIAN_V2,
-                ),
-                Error::<T>::EnergyVerificationFailed
+                computed_energy < difficulty_threshold,
+                Error::<T>::EnergyAboveDifficulty
             );
 
             // ── Advance Network Bimetric Phase ───────────────────────────
@@ -397,8 +421,10 @@ pub mod pallet {
             // Adjust difficulty using the chain timestamp (tamper-proof)
             Self::adjust_difficulty(chain_timestamp_ms, block_height);
 
-            // Store SUSY solution and prune old entries beyond retention window
-            SusySolutions::<T>::insert(block_height, &vqe_proof);
+            // Store SUSY solution with runtime-computed energy (authoritative)
+            let mut verified_proof = vqe_proof.clone();
+            verified_proof.energy = computed_energy;
+            SusySolutions::<T>::insert(block_height, &verified_proof);
             if block_height > SUSY_RETENTION_WINDOW {
                 SusySolutions::<T>::remove(block_height.saturating_sub(SUSY_RETENTION_WINDOW));
             }
@@ -441,14 +467,14 @@ pub mod pallet {
             Self::deposit_event(Event::BlockMined {
                 block_height,
                 miner: miner_address,
-                energy: vqe_proof.energy,
+                energy: computed_energy,
                 difficulty,
                 reward: total_reward,
             });
 
             Self::deposit_event(Event::SusySolutionStored {
                 block_height,
-                energy: vqe_proof.energy,
+                energy: computed_energy,
                 n_qubits: vqe_proof.n_qubits,
             });
 
@@ -494,11 +520,15 @@ pub mod pallet {
                 return InvalidTransaction::BadProof.into();
             }
 
-            // 3. Energy must be below difficulty threshold (lightweight check)
+            // 3. Energy plausibility check (lightweight — real check in dispatch)
+            // The miner's claimed energy may differ from the runtime's computation
+            // due to native vs WASM FP differences. Allow generous margin here;
+            // the dispatch will recompute and do the authoritative check.
             let difficulty = CurrentDifficulty::<T>::get();
             let difficulty_threshold = (difficulty as i128) * 1_000_000;
-            let tolerance_scaled = (ENERGY_VALIDATION_TOLERANCE as i128) * 1_000_000;
-            if vqe_proof.energy >= difficulty_threshold.saturating_add(tolerance_scaled) {
+            // Allow 1.0 scaled energy margin for tx pool admission
+            let pool_margin: i128 = 1_000_000_000_000;
+            if vqe_proof.energy >= difficulty_threshold.saturating_add(pool_margin) {
                 return InvalidTransaction::Custom(2).into();
             }
 

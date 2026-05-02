@@ -26,6 +26,8 @@ pub struct ChainState {
     pub best_hash: String,
     pub height: u64,
     pub difficulty: u64,
+    /// Network bimetric phase theta (scaled by 10^12, radians).
+    pub network_theta: i64,
 }
 
 /// Transaction input (matches Substrate pallet SCALE encoding).
@@ -182,7 +184,37 @@ impl SubstrateClient {
             1_000_000
         };
 
-        Ok(ChainState { best_hash, height, difficulty })
+        // Read NetworkTheta (i64, scaled by 10^12)
+        let theta_key = format!("0x{}{}",
+            hex::encode(twox_128(b"QbcConsensus")),
+            hex::encode(twox_128(b"NetworkTheta")),
+        );
+
+        let resp: RpcResponse<Option<String>> = self.http
+            .post(&self.rpc_url)
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "state_getStorage",
+                "params": [theta_key]
+            }))
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let network_theta = if let Some(Some(hex_val)) = resp.result {
+            let bytes = hex::decode(hex_val.trim_start_matches("0x")).unwrap_or_default();
+            if bytes.len() >= 8 {
+                i64::from_le_bytes(bytes[..8].try_into().unwrap_or([0; 8]))
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        Ok(ChainState { best_hash, height, difficulty, network_theta })
     }
 
     /// Get the current block height.

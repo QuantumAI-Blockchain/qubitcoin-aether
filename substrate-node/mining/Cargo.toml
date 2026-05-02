@@ -39,6 +39,7 @@ log = { workspace = true }
 
 # Local
 qbc-primitives = { workspace = true, features = ["std"] }
+vqe-verifier = { workspace = true, features = ["std"] }
 
 [dev-dependencies]
 approx = "0.5"

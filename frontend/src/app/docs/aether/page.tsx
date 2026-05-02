@@ -51,11 +51,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 /* ─── Data ─── */
 
 const liveStats = [
-  { label: "AI Gates Passed", value: "5 / 10", color: C.green },
+  { label: "AI Gates Passed", value: "6 / 10", color: C.green },
   { label: "HMS-Phi (V5)", value: "0.52", color: C.primary },
-  { label: "Knowledge Vectors", value: "35,000+", color: C.accent },
-  { label: "Embedding Dimensions", value: "896", color: C.secondary },
-  { label: "Block Height", value: "~263,700+", color: C.text },
+  { label: "Knowledge Vectors", value: "95,000+", color: C.accent },
+  { label: "Model Parameters", value: "559M", color: C.secondary },
+  { label: "Block Height", value: "~209,500+", color: C.text },
   { label: "Attention Heads", value: "14", color: C.green },
 ];
 
@@ -89,7 +89,7 @@ const cognitiveSubsystems = [
   {
     name: "Knowledge Fabric",
     icon: <Database size={18} />,
-    desc: "The foundation layer: a 10-shard vector store with 896-dimensional embeddings computed by candle (Hugging Face Rust ML framework). Each shard corresponds to a Sephirot cognitive domain, backed by RocksDB with HNSW (Hierarchical Navigable Small World) indexing for sub-millisecond approximate nearest-neighbor search. Currently holds ~35K learned embedding vectors. Retrieval feeds top-K relevant vectors into the transformer context window for grounded generation.",
+    desc: "The foundation layer: a 10-shard vector store with 896-dimensional embeddings computed by candle (Hugging Face Rust ML framework). Each shard corresponds to a Sephirot cognitive domain, backed by RocksDB with HNSW (Hierarchical Navigable Small World) indexing for sub-millisecond approximate nearest-neighbor search. Currently holds ~95K learned embedding vectors. Retrieval feeds top-K relevant vectors into the transformer context window for grounded generation.",
   },
   {
     name: "Transformer Attention Engine",
@@ -321,8 +321,9 @@ function AetherWhitepaperContent() {
           by the Aether Mind is cryptographically attested on the QuantumAI Blockchain (Chain ID
           3303) via the Substrate pallet qbc-aether-anchor, creating an immutable, publicly
           verifiable record of AI development from genesis block zero. This is not a theoretical
-          proposal. The system has been live on mainnet since January 2026, processing every block,
-          building knowledge, and demonstrating measurable cognitive growth across 209,000+ blocks.
+          proposal. The system has been live on mainnet since April 2026, processing every block,
+          building knowledge, and demonstrating measurable cognitive growth across 212,000+ blocks
+          (fork-aware height including pre-fork Python chain genesis at block 208,680).
           The long-term aspiration is AGSI &mdash; Artificial General Super Intelligence &mdash;
           a system that reasons across domains, improves autonomously, and operates with full public
           auditability.
@@ -338,8 +339,8 @@ function AetherWhitepaperContent() {
           attention patterns across micro, meso, and macro scales.
         </Paragraph>
         <Paragraph>
-          As of April 2026, the Aether Mind has passed all 10 behavioral milestone gates, achieving
-          a Phi score of 5.0 (maximum gate ceiling). The Knowledge Fabric contains ~21,000
+          As of May 2026, the Aether Mind has passed 6 of 10 behavioral milestone gates, achieving
+          a Phi score of 0.54 (gate ceiling at 3.0). The Knowledge Fabric contains ~95,000
           learned embedding vectors across 10 Sephirot-sharded RocksDB stores with HNSW indexing.
           Text generation is handled by Ollama (qwen2.5:0.5b-instruct GGUF) at ~53ms per token,
           while candle computes consciousness metrics and embeddings in parallel. The system

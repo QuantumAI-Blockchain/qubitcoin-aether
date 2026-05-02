@@ -14,6 +14,7 @@ use crate::vqe;
 
 const ENERGY_SCALE: f64 = 1e12;
 const DIFFICULTY_SCALE: f64 = 1e6;
+const BIMETRIC_SCALE: f64 = 1e12;
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Default pallet indices in the QBC runtime.
@@ -181,7 +182,8 @@ pub fn start(config: MinerConfig) -> MinerHandle {
                 parent[..len].copy_from_slice(&hash_bytes[..len]);
 
                 let seed = hamiltonian::derive_seed(&parent, mining_height);
-                let ham = hamiltonian::generate_hamiltonian(&seed);
+                let theta_f64 = chain_state.network_theta as f64 / BIMETRIC_SCALE;
+                let ham = hamiltonian::generate_hamiltonian_v2(&seed, theta_f64);
                 let difficulty_f64 = chain_state.difficulty as f64 / DIFFICULTY_SCALE;
 
                 debug!(

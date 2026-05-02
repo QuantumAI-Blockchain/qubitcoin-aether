@@ -146,4 +146,8 @@ serde_core = { path = "patches/serde_core" }
 panic = "unwind"
 opt-level = 3
 lto = "thin"
+# Force single codegen unit so LLVM optimizes all call sites identically.
+# Combined with -fma in .cargo/config.toml, this ensures vqe_verifier
+# produces bit-identical FP results from mining engine and runtime pallet.
+codegen-units = 1
 

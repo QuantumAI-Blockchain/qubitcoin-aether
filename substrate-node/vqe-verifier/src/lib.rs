@@ -20,4 +20,4 @@ pub mod ansatz;
 pub mod hamiltonian;
 pub mod verify;
 
-pub use verify::{verify_energy, verify_energy_versioned};
+pub use verify::{verify_energy, verify_energy_versioned, compute_energy_versioned, debug_compute_energy};

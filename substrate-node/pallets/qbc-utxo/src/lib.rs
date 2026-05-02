@@ -195,8 +195,35 @@ pub mod pallet {
         UtxoFrozen,
     }
 
+    /// Storage flag to ensure the height migration runs exactly once.
+    #[pallet::storage]
+    pub type HeightMigrationDone<T: Config> = StorageValue<_, bool, ValueQuery>;
+
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+            if !HeightMigrationDone::<T>::get() {
+                // One-shot migration: add 80,000 to CurrentHeight to account for
+                // blocks mined on the first Substrate chain (fork 1) before the
+                // consensus upgrade fork (fork 2).
+                // Fork 1 started at Python block 208,680, mined ~80K more blocks.
+                // Fork 2 genesis was incorrectly set to 208,680 instead of 288,680.
+                const HEIGHT_OFFSET: u64 = 80_000;
+                let old_height = CurrentHeight::<T>::get();
+                let new_height = old_height.saturating_add(HEIGHT_OFFSET);
+                CurrentHeight::<T>::put(new_height);
+                HeightMigrationDone::<T>::put(true);
+                log::info!(
+                    target: "utxo",
+                    "Height migration: {} -> {} (+{})",
+                    old_height, new_height, HEIGHT_OFFSET
+                );
+                T::DbWeight::get().reads_writes(2, 2)
+            } else {
+                T::DbWeight::get().reads(1)
+            }
+        }
+    }
 
     #[pallet::genesis_config]
     #[derive(frame_support::DefaultNoBound)]

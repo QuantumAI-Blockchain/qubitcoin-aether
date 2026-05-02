@@ -44,6 +44,45 @@ fn test_v2_hamiltonian_mining_matches_verifier() {
     }
 }
 
+/// Diagnostic: print exact energy values from mining vs verifier.
+#[test]
+fn test_energy_drift_diagnostic() {
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha8Rng;
+
+    // Test with theta=0 (the live chain scenario)
+    for seed_byte in [42u8, 1, 99, 200] {
+        let seed = H256::from([seed_byte; 32]);
+        let theta = 0.0;
+
+        let ham = qbc_mining::hamiltonian::generate_hamiltonian_v2(&seed, theta);
+        let mut rng = ChaCha8Rng::seed_from_u64(seed_byte as u64);
+        let result = qbc_mining::vqe::optimize(&ham, &mut rng);
+
+        let scale = 1e12;
+        let params_scaled: Vec<i64> = result.params.iter().map(|&p| (p * scale) as i64).collect();
+        let energy_scaled = (result.energy * scale) as i128;
+        let theta_scaled = (theta * scale) as i64;
+
+        // Verifier recompute
+        let verifier_ham = vqe_verifier::hamiltonian::generate_hamiltonian_v2(&seed, theta);
+        let mut sv = vqe_verifier::simulator::Statevector::new(4);
+        let params_f64: Vec<f64> = params_scaled.iter().map(|&p| p as f64 / scale).collect();
+        vqe_verifier::ansatz::apply_ansatz(&mut sv, &params_f64);
+        let verifier_energy = vqe_verifier::hamiltonian::compute_energy(&verifier_ham, &sv);
+        let verifier_scaled = (verifier_energy * scale) as i128;
+
+        let diff = (energy_scaled - verifier_scaled).abs();
+        println!(
+            "seed={}: mining_e={:.12}, verifier_e={:.12}, diff_scaled={}, tolerance=10000000000, ok={}",
+            seed_byte, result.energy, verifier_energy, diff, diff <= 10_000_000_000i128
+        );
+
+        let ok = vqe_verifier::verify_energy_versioned(&seed, &params_scaled, energy_scaled, theta_scaled, 2);
+        assert!(ok, "Proof from seed {} should be accepted, diff={}", seed_byte, diff);
+    }
+}
+
 /// End-to-end: mining engine produces a proof, verifier accepts it.
 #[test]
 fn test_mining_proof_accepted_by_verifier() {

@@ -148,6 +148,13 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
         // This prevents re-mining the same parent block. Once a new block is
         // imported (by us or someone else), best_hash changes and we retry.
         if best_hash == last_mined_hash {
+            if iteration % 100 == 0 {
+                info!(
+                    target: "mining",
+                    "[miner-{}] Waiting for new block (iter={}, best={:?}, last_mined={:?})",
+                    thread_id, iteration, best_hash, last_mined_hash
+                );
+            }
             std::thread::sleep(POLL_INTERVAL);
             continue;
         }
@@ -176,10 +183,11 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
         let seed = hamiltonian::derive_seed(&best_hash, mining_height);
         let hamiltonian = hamiltonian::generate_hamiltonian_v2(&seed, theta_f64);
 
-        debug!(
+        info!(
             target: "mining",
-            "[miner-{}] Mining height {} (difficulty={:.6}, theta={:.4}, best_hash={:?})",
-            thread_id, mining_height, difficulty as f64 / DIFFICULTY_SCALE, theta_f64, best_hash
+            "[miner-{}] Mining height {} (difficulty={:.6}, theta={:.4}, best_hash={:?}, last_proved={})",
+            thread_id, mining_height, difficulty as f64 / DIFFICULTY_SCALE, theta_f64, best_hash,
+            last_proved_height.load(Ordering::Relaxed)
         );
 
         // 4. Run VQE optimization attempts
@@ -191,9 +199,12 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
         if last_proved_height.load(Ordering::Relaxed) >= mining_height {
             debug!(
                 target: "mining",
-                "[miner-{}] Height {} already proved by another thread, skipping",
-                thread_id, mining_height
+                "[miner-{}] Height {} already proved (last_proved={}), waiting for new block",
+                thread_id, mining_height, last_proved_height.load(Ordering::Relaxed)
             );
+            // CRITICAL: Mark this hash as processed so we wait for a genuinely
+            // new block instead of re-entering this skip path every 100ms.
+            last_mined_hash = best_hash;
             std::thread::sleep(POLL_INTERVAL);
             continue;
         }
@@ -277,6 +288,17 @@ pub fn run_mining_with_notify<C: ChainReader, S: ProofSubmitter>(
                                 thread_id, mining_height
                             );
                             last_proved_height.store(mining_height, Ordering::Release);
+
+                            // Notify block author — the proof is in the pool
+                            // and needs a block to be authored even though our
+                            // submission was a duplicate.
+                            if let Some(ref tx) = proof_tx {
+                                let _ = tx.try_send(MiningProofReady {
+                                    block_height: mining_height,
+                                    tx_hash: H256::zero(),
+                                });
+                            }
+
                             last_mined_hash = best_hash;
                             found = true;
                             break;

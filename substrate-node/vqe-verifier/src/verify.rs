@@ -18,9 +18,9 @@ const SCALE_FACTOR: f64 = 1_000_000_000_000.0; // 10^12
 
 /// Verification tolerance in scaled units (10^12 scale).
 ///
-/// The only source of drift is floating-point differences between the
-/// mining engine (std math) and this verifier (libm math). This should
-/// be very small (< 1e-6). We use a tolerance of 1e-2 to be safe.
+/// Both the mining engine and the runtime pallet use vqe-verifier's
+/// simulator/ansatz/hamiltonian code, so floating-point results should
+/// be bit-identical. The tolerance is kept tight to prevent fraud.
 ///
 /// 1e-2 * 10^12 = 10_000_000_000
 const TOLERANCE_SCALED: i128 = 10_000_000_000;
@@ -85,6 +85,73 @@ pub fn verify_energy(
     };
 
     diff <= TOLERANCE_SCALED
+}
+
+/// Compute the VQE energy from params and seed, returning the scaled energy.
+///
+/// This is the authoritative energy computation used by the runtime pallet.
+/// The miner submits only parameters; the runtime computes the energy itself
+/// and checks if it's below difficulty. This eliminates FP divergence between
+/// native (mining engine) and WASM (runtime pallet) execution environments.
+///
+/// # Returns
+/// `Some(energy_scaled)` on success, `None` if params are invalid.
+pub fn compute_energy_versioned(
+    seed: &H256,
+    params_scaled: &[i64],
+    theta_scaled: i64,
+    version: u8,
+) -> Option<i128> {
+    if params_scaled.len() != ansatz::N_PARAMS {
+        return None;
+    }
+    let params: Vec<f64> = params_scaled
+        .iter()
+        .map(|&p| p as f64 / SCALE_FACTOR)
+        .collect();
+    let ham = match version {
+        1 => hamiltonian::generate_hamiltonian(seed),
+        _ => {
+            let theta = theta_scaled as f64 / SCALE_FACTOR;
+            hamiltonian::generate_hamiltonian_v2(seed, theta)
+        }
+    };
+    let mut sv = Statevector::new(ansatz::N_QUBITS);
+    if !ansatz::apply_ansatz(&mut sv, &params) {
+        return None;
+    }
+    let computed_energy = hamiltonian::compute_energy(&ham, &sv);
+    Some((computed_energy * SCALE_FACTOR) as i128)
+}
+
+/// Debug helper: compute the energy that the verifier would produce for the given
+/// seed, params, theta, and version. Returns the energy as i128 scaled by 10^12.
+pub fn debug_compute_energy(
+    seed: &H256,
+    params_scaled: &[i64],
+    theta_scaled: i64,
+    version: u8,
+) -> i128 {
+    if params_scaled.len() != ansatz::N_PARAMS {
+        return 0;
+    }
+    let params: Vec<f64> = params_scaled
+        .iter()
+        .map(|&p| p as f64 / SCALE_FACTOR)
+        .collect();
+    let ham = match version {
+        1 => hamiltonian::generate_hamiltonian(seed),
+        _ => {
+            let theta = theta_scaled as f64 / SCALE_FACTOR;
+            hamiltonian::generate_hamiltonian_v2(seed, theta)
+        }
+    };
+    let mut sv = Statevector::new(ansatz::N_QUBITS);
+    if !ansatz::apply_ansatz(&mut sv, &params) {
+        return 0;
+    }
+    let computed_energy = hamiltonian::compute_energy(&ham, &sv);
+    (computed_energy * SCALE_FACTOR) as i128
 }
 
 /// Verify VQE energy with version awareness.

@@ -80,6 +80,33 @@ pub mod pallet {
         }
     }
 
+    /// Storage flag to ensure the supply migration runs exactly once.
+    #[pallet::storage]
+    pub type SupplyMigrationDone<T: Config> = StorageValue<_, bool, ValueQuery>;
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_runtime_upgrade() -> Weight {
+            if !SupplyMigrationDone::<T>::get() {
+                // One-shot migration: add 80,000 blocks worth of rewards to TotalEmitted.
+                // 80,000 blocks × 15.27 QBC × 10^8 units/QBC = 1,221,600 × 10^8
+                const ADDITIONAL_EMITTED: u128 = 122_160_000_000_000;
+                let old_emitted = TotalEmitted::<T>::get();
+                let new_emitted = old_emitted.saturating_add(ADDITIONAL_EMITTED);
+                TotalEmitted::<T>::put(new_emitted);
+                SupplyMigrationDone::<T>::put(true);
+                log::info!(
+                    target: "economics",
+                    "Supply migration: {} -> {} (+{} = 80K blocks × 15.27 QBC)",
+                    old_emitted, new_emitted, ADDITIONAL_EMITTED
+                );
+                T::DbWeight::get().reads_writes(2, 2)
+            } else {
+                T::DbWeight::get().reads(1)
+            }
+        }
+    }
+
     impl<T: Config> Pallet<T> {
         /// Calculate the block reward for a given height.
         ///

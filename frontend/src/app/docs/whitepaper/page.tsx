@@ -440,7 +440,7 @@ export default function WhitepaperPage() {
             <Paragraph>
               Quantum Blockchain is a Layer 1 blockchain protocol secured by variational quantum
               eigensolver (VQE) computation on supersymmetric (SUSY) Hamiltonians. The native currency
-              is Qubitcoin (QBC), denominated with 18 decimal places of precision. The protocol
+              is Qubitcoin (QBC), denominated with 8 decimal places of precision (1 QBC = 10^8 base units). The protocol
               integrates post-quantum cryptographic signatures (CRYSTALS-Dilithium5, NIST ML-DSA-87,
               Level 5), a full EVM-compatible virtual machine with quantum opcode extensions (QVM),
               and an on-chain neural cognitive engine (Aether Mind) that tracks integrated information metrics
@@ -450,7 +450,7 @@ export default function WhitepaperPage() {
             <SubHeading>Protocol Identifiers</SubHeading>
             <StatGrid stats={[
               { label: "Native Currency", value: "Qubitcoin (QBC)" },
-              { label: "Decimal Precision", value: "18 decimals" },
+              { label: "Decimal Precision", value: "8 decimals" },
               { label: "Mainnet Chain ID", value: "3303 (0xCE7)" },
               { label: "Testnet Chain ID", value: "3304 (0xCE8)" },
               { label: "Domain", value: "qbc.network" },
@@ -467,7 +467,7 @@ export default function WhitepaperPage() {
             <BulletList items={[
               "Layer 1 (Blockchain Core): UTXO-based transaction model, PoSA consensus, VQE mining, Dilithium5 signatures, Rust libp2p networking, CockroachDB persistence, IPFS content storage",
               "Layer 2 (QVM): 167-opcode EVM-compatible virtual machine (155 EVM + 10 quantum + 2 reasoning), Solidity smart contract execution, gas metering, compliance engine, token standards (QBC-20, QBC-721, QBC-1155)",
-              "Layer 3 (Aether Mind): On-chain neural cognitive engine built in pure Rust (candle ML framework) with Knowledge Fabric (learned 1024d embeddings in sharded RocksDB + HNSW), transformer attention (8-layer, 16-head, 10 Sephirot-specialized + 6 global workspace), information-theoretic integration metric (Phi), Proof-of-Thought protocol, and Ollama LLM integration",
+              "Layer 3 (Aether Mind): On-chain neural cognitive engine built in pure Rust (candle ML framework) with Knowledge Fabric (learned 896d embeddings in sharded RocksDB + HNSW), 559M-parameter transformer (24 layers, 14 attention heads: 10 Sephirot-specialized + 4 global workspace), information-theoretic integration metric (Phi), Proof-of-Thought protocol, and Ollama LLM integration",
               "Cross-Cutting: Multi-chain bridges to 8 networks (ETH, BNB, SOL, MATIC, AVAX, ARB, OP, BASE), QUSD dollar-pegged stablecoin, Prometheus/Grafana monitoring, Rust exchange matching engine",
             ]} />
 
@@ -475,19 +475,19 @@ export default function WhitepaperPage() {
             <SpecTable
               headers={["Layer", "Component", "Language", "Files", "Lines of Code"]}
               rows={[
-                ["L1", "Blockchain Core", "Python 3.12+", "160 modules", "~82,500"],
+                ["L1", "Blockchain Core (Substrate)", "Rust (Substrate SDK)", "7 pallets, 7 crates", "~17,400"],
+                ["L1", "VQE Mining Engine", "Rust", "4 crates", "~3,500"],
+                ["L1", "Bimetric Physics", "Rust (no_std)", "4 modules", "~1,200"],
                 ["L1", "P2P Network", "Rust (libp2p 0.56)", "4 source files", "~1,200"],
-                ["L1", "Security Core", "Rust (PyO3)", "3 source files", "~530"],
                 ["L1", "Stratum Server", "Rust", "7 source files", "~1,030"],
-                ["L1", "Substrate Hybrid Node", "Rust (Substrate SDK)", "29 files, 7 crates", "~17,400"],
-                ["L2", "QVM (Python prototype)", "Python", "8 modules", "~4,500"],
+                ["L1", "API Gateway", "Rust (Axum)", "10 source files", "~2,000"],
+                ["L1", "Legacy Node", "Python 3.12+", "160 modules", "~82,500"],
                 ["L2", "QVM (Production)", "Go", "34 source files", "~10,000"],
                 ["L2", "Solidity Contracts", "Solidity 0.8.24+", "65 contracts", "~15,000"],
-                ["L3", "Aether Mind (Rust)", "Rust (candle ML)", "6 crates", "~8,000"],
+                ["L3", "Aether Mind", "Rust (candle ML)", "6 crates", "~8,000"],
                 ["L3", "Higgs Cognitive Field", "Rust + Solidity", "6 files", "~1,200"],
                 ["Frontend", "qbc.network", "TypeScript/React/Next.js 16", "200 files", "~66,900"],
                 ["Infra", "Docker/Monitoring/DevOps", "YAML/Shell", "20+ configs", "~2,000"],
-                ["Tests", "pytest suite", "Python", "4,357 tests", "~40,000"],
               ]}
             />
           </SectionCard>
@@ -498,71 +498,226 @@ export default function WhitepaperPage() {
           <SectionCard id="consensus" number="2" title="Consensus: Proof-of-SUSY-Alignment (PoSA)">
             <Paragraph>
               Proof-of-SUSY-Alignment (PoSA) replaces hash-based proof-of-work with variational
-              quantum eigensolver optimization on deterministic supersymmetric Hamiltonians. Every
-              mined block simultaneously secures the network and contributes a solved quantum
-              physics problem to a public scientific database. The consensus mechanism operates
-              through a five-stage pipeline.
+              quantum eigensolver (VQE) optimization on deterministic supersymmetric Hamiltonians.
+              Every mined block simultaneously secures the network and contributes a solved quantum
+              physics problem to a public scientific database. The protocol operates through a
+              formally specified pipeline: deterministic Hamiltonian generation, VQE optimization,
+              on-chain re-verification, difficulty adjustment, and Proof-of-Thought attestation.
+            </Paragraph>
+            <Paragraph>
+              The SUGRA v2 consensus introduces a bimetric Hamiltonian with a network-wide phase
+              angle theta that rotates continuously across blocks, coupling the quantum mining
+              problem to the global network state. This creates an evolving energy landscape that
+              prevents static solution caching and binds each block to the full chain history.
             </Paragraph>
 
-            <SubHeading>Stage 1: Hamiltonian Generation</SubHeading>
+            <SubHeading>2.1 Seed Derivation</SubHeading>
             <Paragraph>
-              A deterministic SUSY Hamiltonian is generated from the SHA3-256 hash of the previous
-              block. The hash bytes seed the Hamiltonian coefficients, ensuring every miner works
-              on the identical quantum optimization problem. The generated Hamiltonian is a 4-qubit
-              system representing a simplified supersymmetric field theory with both bosonic and
-              fermionic terms.
+              Each block derives its Hamiltonian seed deterministically from the parent block hash
+              and the current block height. This ensures every miner works on an identical quantum
+              optimization problem and that the problem is uniquely determined by chain state.
             </Paragraph>
+            <CodeBlock>{`seed = SHA-256( hex(parent_hash) || ":" || decimal(block_height) )
 
-            <SubHeading>Stage 2: VQE Mining</SubHeading>
+The seed bytes are consumed by a seeded PRNG to generate all Hamiltonian
+coefficients. Given the same parent_hash and block_height, every node
+produces a bit-identical Hamiltonian.`}</CodeBlock>
+
+            <SubHeading>2.2 SUGRA v2 Bimetric Hamiltonian</SubHeading>
             <Paragraph>
-              Miners use the Variational Quantum Eigensolver (VQE) algorithm with a parameterized
-              4-qubit ansatz circuit containing 2 repetition layers (12 variational parameters).
-              The objective is to find circuit parameters that minimize the expectation value of
-              the SUSY Hamiltonian. The mining condition is satisfied when the computed ground
-              state energy falls below the current difficulty threshold.
+              The SUGRA v2 Hamiltonian is a structured 9-term operator acting on a 4-qubit Hilbert
+              space (dimension 16). It decomposes into four physically motivated sub-Hamiltonians:
+              a SUSY sector with golden-ratio coupling, a bimetric sector parameterized by the
+              network phase angle theta, an Integrated Information Theory (IIT) sector encoding
+              cognitive integration, and a stochastic sector providing per-block uniqueness.
             </Paragraph>
-            <CodeBlock>{`Mining Condition:  E_ground < D_threshold
+            <CodeBlock>{`H = H_SUSY (3 terms) + H_bimetric (2 terms, theta) + H_IIT (2 terms) + H_random (2 terms)
+
+where phi = 1.618033988749895... (golden ratio)`}</CodeBlock>
+
+            <Paragraph>
+              The SUSY sector encodes a supersymmetric coupling hierarchy governed by inverse
+              powers of the golden ratio. The base coefficient c0 is drawn from the seeded PRNG
+              in the interval [0.3, 1.0), ensuring non-trivial coupling strength.
+            </Paragraph>
+            <CodeBlock>{`H_SUSY:
+  Term 1:  c_0           * Z x Z x I x I       (base SUSY coupling)
+  Term 2:  c_0 * phi^-1  * X x X x X x X       (golden-ratio suppressed 4-body term)
+  Term 3:  c_0 * phi^-2  * Y x Z x Y x Z       (phi-squared suppressed alternating term)
+
+  c_0 ~ Uniform[0.3, 1.0)    seeded by block seed
+  phi^-1 = 0.6180339...      phi^-2 = 0.3819660...`}</CodeBlock>
+
+            <Paragraph>
+              The bimetric sector couples two metric tensors through the network phase angle theta.
+              As theta evolves across blocks, the relative weight of the Z-Z and X-X interaction
+              channels rotates continuously, preventing any static parameter set from remaining
+              optimal across consecutive blocks.
+            </Paragraph>
+            <CodeBlock>{`H_bimetric(theta):
+  Term 4:  b * cos(theta) * Z x I x Z x I      (diagonal metric coupling)
+  Term 5:  b * sin(theta) * X x I x X x I      (off-diagonal metric coupling)
+
+  b ~ Uniform[0.1, 0.5)      seeded by block seed
+  theta = NetworkTheta        (see Section 2.3)`}</CodeBlock>
+
+            <Paragraph>
+              The IIT sector introduces a bias toward states with high integrated information,
+              reflecting the network&apos;s cognitive integration metric. The coupling strength
+              omega_Phi is fixed at 0.15 with golden-ratio hierarchical suppression.
+            </Paragraph>
+            <CodeBlock>{`H_IIT:
+  Term 6:  -omega_Phi          * I x Z x Z x Z   (3-body IIT integration term)
+  Term 7:  -omega_Phi * phi^-1 * Z x I x Z x Z   (golden-ratio suppressed IIT term)
+
+  omega_Phi = 0.15 (fixed)`}</CodeBlock>
+
+            <Paragraph>
+              The random sector adds two stochastic Pauli strings drawn from the full 4-qubit
+              Pauli group (excluding identity), with coefficients in [-0.5, 0.5). These terms
+              ensure the energy landscape is unique per block even when the SUSY and bimetric
+              sectors produce similar structures.
+            </Paragraph>
+            <CodeBlock>{`H_random:
+  Terms 8-9:  r_i * P_i    where P_i in {I,X,Y,Z}^4 \\ {IIII}
+                           r_i ~ Uniform[-0.5, 0.5)
+                           Pauli strings chosen by seeded PRNG`}</CodeBlock>
+
+            <SubHeading>2.3 Network Phase Dynamics (theta)</SubHeading>
+            <Paragraph>
+              The network maintains a global phase angle theta (NetworkTheta) that advances by
+              a fixed increment each block. The increment is derived from the golden angle,
+              producing a quasi-periodic rotation that never exactly repeats over any practical
+              chain length. This creates an evolving bimetric coupling that makes the energy
+              landscape continuously shift.
+            </Paragraph>
+            <CodeBlock>{`theta_{n+1} = (theta_n + Delta_theta) mod 2*pi
+
+Delta_theta = golden_angle / 100
+            = (2*pi / phi^2) / 100
+            = 0.023999632297 rad/block
+
+Full rotation period:  2*pi / Delta_theta = 261.8 blocks = 863.9 seconds = 14.4 minutes
+
+The golden angle (2*pi/phi^2 = 2.39996...) is irrational with respect to pi,
+guaranteeing the phase sequence is non-repeating (equidistributed on [0, 2*pi)).`}</CodeBlock>
+
+            <SubHeading>2.4 Geometric Coupling (alpha)</SubHeading>
+            <Paragraph>
+              The geometric coupling coefficient alpha quantifies the alignment between a miner&apos;s
+              VQE solution and the network&apos;s Sephirot cognitive architecture. It is computed from
+              the miner&apos;s optimized parameters and the 10 Sephirot phase offsets, then smoothed
+              via an exponential moving average (EMA) to prevent abrupt coupling transitions.
+            </Paragraph>
+            <CodeBlock>{`Phase extraction from miner parameters:
+  theta_block = atan2( sum(params[odd_indices]), sum(params[even_indices]) )
+
+Per-Sephirot alignment:
+  alpha_block = sum_i( yukawa_i * cos(theta_block - theta_sephirot_i) )
+
+  yukawa_i   = Sephirot coupling constant (see Section 7: Aether Mind)
+  theta_sephirot_i = fixed phase offset for Sephirot i
+
+Network EMA:
+  alpha_network = 0.9 * alpha_old + 0.1 * alpha_block
+
+alpha_network is recorded in each block header and used by the Aether Mind
+to modulate learning rates across Sephirot cognitive modules.`}</CodeBlock>
+
+            <SubHeading>2.5 VQE Ansatz Circuit</SubHeading>
+            <Paragraph>
+              The variational ansatz is a TwoLocal circuit on 4 qubits with RY single-qubit
+              rotations and CZ two-qubit entangling gates in linear connectivity with 2 repetition
+              layers, yielding 12 variational parameters. The circuit structure is fixed across all
+              blocks; only the parameters are optimized by miners.
+            </Paragraph>
+            <CodeBlock>{`Circuit layout (12 parameters: theta_0 through theta_11):
+
+Layer 0 (rotation):     RY(theta_0)--RY(theta_1)--RY(theta_2)--RY(theta_3)
+Layer 0 (entanglement): CZ(q0,q1)   CZ(q1,q2)   CZ(q2,q3)
+Layer 1 (rotation):     RY(theta_4)--RY(theta_5)--RY(theta_6)--RY(theta_7)
+Layer 1 (entanglement): CZ(q0,q1)   CZ(q1,q2)   CZ(q2,q3)
+Layer 2 (rotation):     RY(theta_8)--RY(theta_9)--RY(theta_10)-RY(theta_11)
+
+Entanglement map (linear):  [(0,1), (1,2), (2,3)]
+Total 2-qubit gates:        6 CZ gates
+Circuit depth:              O(reps * qubits) = O(8)
+
+Optimizer:    COBYLA (gradient-free, derivative-free, noise-resilient)
+Max iterations: 200
+Convergence:  |E_{k} - E_{k-1}| < 1e-6 or iteration limit`}</CodeBlock>
+
+            <SubHeading>2.6 VQE Mining and On-Chain Re-Verification</SubHeading>
+            <Paragraph>
+              Miners optimize the ansatz parameters locally using VQE to minimize the Hamiltonian
+              expectation value. A valid proof requires the computed energy to fall below the
+              current difficulty threshold. Critically, miners submit only their optimized
+              parameters — the runtime independently re-derives the Hamiltonian and recomputes
+              the energy to verify the proof. This prevents precomputation attacks and ensures
+              every accepted block contains a genuinely solved quantum optimization.
+            </Paragraph>
+            <CodeBlock>{`Mining condition:
+  E = sum_i( c_i * <psi(theta) | P_i | psi(theta)> )  <  D_threshold
 
 Where:
-  E_ground   = <psi(theta)|H_susy|psi(theta)>   (VQE expectation value)
-  D_threshold = current difficulty target          (energy units)
-  theta       = 12 variational parameters          (ansatz circuit angles)
-  H_susy      = deterministic from prev_block_hash (4-qubit Hamiltonian)
+  |psi(theta)> = TwoLocal(theta_0..theta_11)   (ansatz state vector)
+  c_i          = Hamiltonian coefficient i       (deterministic from seed)
+  P_i          = Pauli operator string i         (4-qubit tensor product)
+  D_threshold  = current difficulty target       (energy units, float64)
 
-Ansatz: 4 qubits, 2 repetition layers, RY + CNOT entangling gates
-Optimizer: COBYLA (gradient-free, noise-resilient)`}</CodeBlock>
+On-chain re-verification protocol (runtime):
+  1. Miner submits: (block_header, vqe_params[12], signature)
+  2. Runtime re-derives Hamiltonian from (parent_hash, block_height)
+  3. Runtime reconstructs |psi(theta)> from submitted params
+  4. Runtime recomputes E = sum_i c_i <psi|P_i|psi>
+  5. Runtime checks: E < D_threshold
+  6. Ed25519 signature binds miner identity to proof (prevents proof theft)
+  7. Block accepted IFF energy check AND signature check both pass
 
-            <SubHeading>Stage 3: Difficulty Adjustment</SubHeading>
+The miner NEVER submits the energy value — it is always recomputed.
+This makes it impossible to forge a mining proof without solving the VQE.`}</CodeBlock>
+
+            <SubHeading>2.7 Difficulty Adjustment</SubHeading>
             <Paragraph>
               Difficulty is adjusted after every block using a 144-block sliding window. The
               algorithm computes the ratio of actual block production time to expected time
-              (144 blocks x 3.3 seconds = 475.2 seconds). The adjustment is clamped to a
-              maximum change of +/-10% per block to prevent instability.
+              and applies a clamped multiplicative adjustment. The difficulty value represents
+              an energy threshold: higher difficulty means a more generous threshold (easier mining),
+              which is inverted from hash-based proof-of-work systems.
             </Paragraph>
-            <CodeBlock>{`ratio = actual_time / expected_time
-new_difficulty = current_difficulty * ratio
-clamped: 0.9 * current <= new_difficulty <= 1.1 * current
+            <CodeBlock>{`D_new = D_old * clamp( T_actual / T_expected,  0.9,  1.1 )
 
-CRITICAL: Higher difficulty value = easier mining (threshold is more generous)
-This is INVERTED from proof-of-work where higher difficulty = harder mining.
+Where:
+  T_expected = 144 * 3.3s = 475.2s          (expected window duration)
+  T_actual   = t(block_n) - t(block_{n-144}) (observed window duration)
 
-Window:      144 blocks
-Target:      475.2 seconds (144 x 3.3s)
-Max change:  +/-10% per adjustment`}</CodeBlock>
+  clamp(x, lo, hi) = max(lo, min(hi, x))
 
-            <SubHeading>Stage 4: Block Reward</SubHeading>
+Bounds:
+  Floor:              D >= 0.5              (absolute minimum difficulty)
+  Ceiling:            D <= 1000.0           (absolute maximum difficulty)
+  Meaningful guard:   D <= 10.0             (practical upper bound)
+
+Semantics (INVERTED from PoW):
+  Higher D  =>  more generous energy threshold  =>  EASIER mining
+  Lower  D  =>  tighter energy threshold        =>  HARDER mining
+
+  Slow blocks (T_actual > T_expected):  ratio > 1  =>  D increases  =>  easier
+  Fast blocks (T_actual < T_expected):  ratio < 1  =>  D decreases  =>  harder`}</CodeBlock>
+
+            <SubHeading>2.8 Block Reward</SubHeading>
             <Paragraph>
               Block rewards follow a phi-halving emission schedule (see Section 4: Economics).
               The coinbase transaction is created as the first transaction in each block with
               a maturity requirement of 100 confirmations before the reward becomes spendable.
             </Paragraph>
 
-            <SubHeading>Stage 5: Proof-of-Thought</SubHeading>
+            <SubHeading>2.9 Proof-of-Thought</SubHeading>
             <Paragraph>
               Every block includes a Proof-of-Thought generated by the Aether Mind neural
               cognitive engine. This proof contains attention pattern hashes, gradient proofs,
               and the current Phi measurement for the block, creating an immutable record of
-              on-chain reasoning since genesis.
+              on-chain AI reasoning since genesis.
             </Paragraph>
 
             <SubHeading>Consensus Parameters</SubHeading>
@@ -570,13 +725,32 @@ Max change:  +/-10% per adjustment`}</CodeBlock>
               { label: "Ansatz Qubits", value: "4" },
               { label: "Repetition Layers", value: "2" },
               { label: "Variational Parameters", value: "12" },
+              { label: "Hamiltonian Terms", value: "9" },
               { label: "Target Block Time", value: "3.3 seconds" },
               { label: "Difficulty Window", value: "144 blocks" },
               { label: "Max Difficulty Change", value: "+/-10% per block" },
               { label: "Coinbase Maturity", value: "100 blocks" },
-              { label: "Optimizer", value: "COBYLA" },
-              { label: "Quantum Backend", value: "Qiskit (local/IBM)" },
+              { label: "Optimizer", value: "COBYLA (max 200 iter)" },
+              { label: "Quantum Backend", value: "Qiskit (local estimator)" },
+              { label: "Phase Increment", value: "0.02400 rad/block" },
+              { label: "Rotation Period", value: "261.8 blocks (14.4 min)" },
             ]} />
+
+            <SubHeading>Hamiltonian Term Summary</SubHeading>
+            <SpecTable
+              headers={["Term", "Sector", "Pauli String", "Coefficient"]}
+              rows={[
+                ["1", "SUSY", "Z x Z x I x I", "c_0"],
+                ["2", "SUSY", "X x X x X x X", "c_0 * phi^-1"],
+                ["3", "SUSY", "Y x Z x Y x Z", "c_0 * phi^-2"],
+                ["4", "Bimetric", "Z x I x Z x I", "b * cos(theta)"],
+                ["5", "Bimetric", "X x I x X x I", "b * sin(theta)"],
+                ["6", "IIT", "I x Z x Z x Z", "-0.15"],
+                ["7", "IIT", "Z x I x Z x Z", "-0.15 * phi^-1"],
+                ["8", "Random", "PRNG Pauli", "r_1 in [-0.5, 0.5)"],
+                ["9", "Random", "PRNG Pauli", "r_2 in [-0.5, 0.5)"],
+              ]}
+            />
 
             <SubHeading>Block Header Structure</SubHeading>
             <CodeBlock>{`BLOCK HEADER (serialized):
@@ -587,8 +761,10 @@ Max change:  +/-10% per adjustment`}</CodeBlock>
   difficulty_target:    float64     (energy threshold for VQE proof)
   nonce:                uint64      (mining nonce)
   hamiltonian_seed:     bytes32     (deterministic seed for SUSY Hamiltonian)
+  network_theta:        float64     (network phase angle at this block)
   vqe_params:           float64[12] (optimal VQE circuit parameters)
-  ground_state_energy:  float64     (achieved energy level - must be < difficulty)
+  ground_state_energy:  float64     (recomputed by runtime - must be < difficulty)
+  geometric_alpha:      float64     (Sephirot geometric coupling coefficient)
   quantum_state_root:   bytes32     (Merkle root of QVM quantum states)
   compliance_root:      bytes32     (Merkle root of compliance proofs)
 
@@ -596,9 +772,11 @@ BLOCK BODY:
   transactions:         Transaction[]  (regular + confidential UTXO transactions)
   coinbase:             Transaction    (mining reward, vout=0 reward + vout=1 premine at genesis)
   susy_data:            {
-    hamiltonian:          object       (generated SUSY Hamiltonian)
-    optimal_params:       float64[12]  (solution parameters)
+    hamiltonian:          object       (9-term SUGRA v2 Hamiltonian)
+    optimal_params:       float64[12]  (solution parameters, submitted by miner)
     energy_history:       float64[]    (VQE convergence trace)
+    network_theta:        float64      (theta at this block)
+    geometric_alpha:      float64      (alpha at this block)
   }
   proof_of_thought:     bytes          (Aether Mind reasoning proof)`}</CodeBlock>
           </SectionCard>
@@ -1043,17 +1221,17 @@ TxOutput:
               { label: "Rust Crates", value: "6" },
               { label: "Lines of Code (Rust)", value: "~8,000" },
               { label: "ML Framework", value: "candle (HuggingFace)" },
-              { label: "Model Parameters", value: "~200M" },
-              { label: "Embedding Dimension", value: "1024d" },
-              { label: "Transformer Layers", value: "8" },
-              { label: "Attention Heads", value: "16 (10 Sephirot + 6 global)" },
+              { label: "Model Parameters", value: "559M" },
+              { label: "Embedding Dimension", value: "896d" },
+              { label: "Transformer Layers", value: "24" },
+              { label: "Attention Heads", value: "14 (10 Sephirot + 4 global)" },
               { label: "Smart Contracts", value: "20 Solidity" },
             ]} />
 
             <SubHeading>Knowledge Fabric</SubHeading>
             <Paragraph>
               The Knowledge Fabric replaces the legacy string-based knowledge graph with learned
-              1024-dimensional embeddings stored in sharded RocksDB with HNSW (Hierarchical
+              896-dimensional embeddings stored in sharded RocksDB with HNSW (Hierarchical
               Navigable Small World) indices for sub-5ms nearest-neighbor retrieval. Each of the
               10 Sephirot cognitive domains maintains its own shard. Block data is ingested through
               an embedding pipeline that extracts multi-vector representations, enabling genuine
@@ -1064,7 +1242,7 @@ TxOutput:
               rows={[
                 ["Storage", "Sharded RocksDB (10 Sephirot shards)"],
                 ["Index", "HNSW for approximate nearest neighbor search"],
-                ["Embeddings", "1024d learned vectors via transformer encoder"],
+                ["Embeddings", "896d learned vectors via transformer encoder"],
                 ["Retrieval", "Top-K relevant vectors (<5ms at 1M vectors)"],
                 ["Scale Target", "1T knowledge vectors across 1000+ mining nodes"],
               ]}
@@ -1072,7 +1250,7 @@ TxOutput:
 
             <SubHeading>Neural Reasoning (Transformer Attention)</SubHeading>
             <BulletList items={[
-              "8-layer transformer with 16 attention heads: 10 Sephirot-specialized heads with domain gating + 6 global workspace heads",
+              "24-layer transformer with 14 attention heads: 10 Sephirot-specialized heads with domain gating + 4 global workspace heads",
               "Causal attention: Specialized heads trained to discover interventional relationships (PC/FCI math preserved)",
               "Adversarial self-testing: Competing attention heads with independent reasoning for robust conclusions",
               "Metacognitive calibration: Learned uncertainty estimation via calibration network",
@@ -1088,7 +1266,7 @@ TxOutput:
               ensuring genuine causal integration at every scale. Phi is computed at every block
               and stored in the phi_measurements database table. The 10-gate milestone system
               provides the floor: each gate unlocks +0.5 phi ceiling (maximum = 5.0 at gate 10).
-              All 10 gates are currently passed, with Phi = 5.0 (maximum gate ceiling).
+              6 of 10 gates are currently passed, with Phi = 0.52 (V5 neural architecture).
             </Paragraph>
             <CodeBlock>{`HMS-Phi v4 Formula:
   Final Phi = phi_micro^(1/phi) x phi_meso^(1/phi^2) x phi_macro^(1/phi^3)
@@ -1115,8 +1293,8 @@ Properties:
 
   PHI_THRESHOLD = 3.0 (integration threshold marker)
   PHI_MAX_CEILING = 5.0 (all 10 gates passed)
-  Current Phi: 5.0 (10/10 gates passed)
-  Knowledge Nodes: 760,000+`}</CodeBlock>
+  Current Phi: 0.52 (6/10 gates passed, V5 neural architecture)
+  Knowledge Vectors: 95,000+`}</CodeBlock>
 
             <SubHeading>10 Sephirot Cognitive Architecture</SubHeading>
             <Paragraph>
