@@ -1,0 +1,252 @@
+// QVM gRPC Service Definition
+//
+// This proto defines the gRPC interface between the Substrate node
+// (qbc-qvm-anchor pallet) and the Go QVM process. The Substrate node
+// calls these RPCs to execute contracts, deploy code, read state, and
+// submit transactions to the QVM.
+//
+// Default port: 50053
+//
+// To regenerate Go code (when protoc toolchain is available):
+//   protoc --go_out=. --go-grpc_out=. proto/qvm.proto
+
+syntax = "proto3";
+
+package qvm;
+
+option go_package = "github.com/BlockArtica/qubitcoin-qvm/pkg/grpc/qvmpb";
+
+// QVMService is the primary gRPC interface for the Qubitcoin QVM.
+service QVMService {
+  // ExecuteContract performs a read-only contract call (eth_call equivalent).
+  // Does not modify state — used for view/pure function calls.
+  rpc ExecuteContract(ExecuteContractRequest) returns (ExecuteContractResponse);
+
+  // DeployContract deploys new contract bytecode to the QVM.
+  // Returns the deployed contract address and gas consumed.
+  rpc DeployContract(DeployContractRequest) returns (DeployContractResponse);
+
+  // GetStateRoot returns the current Merkle Patricia Trie state root.
+  // The Substrate qbc-qvm-anchor pallet stores this per block.
+  rpc GetStateRoot(StateRootRequest) returns (StateRootResponse);
+
+  // GetBalance returns the QBC balance of an account.
+  rpc GetBalance(BalanceRequest) returns (BalanceResponse);
+
+  // GetCode returns the deployed bytecode at a contract address.
+  rpc GetCode(CodeRequest) returns (CodeResponse);
+
+  // GetStorage returns the value at a specific storage slot.
+  rpc GetStorage(StorageRequest) returns (StorageResponse);
+
+  // EstimateGas estimates the gas required for a transaction.
+  rpc EstimateGas(EstimateGasRequest) returns (EstimateGasResponse);
+
+  // SubmitTransaction submits a signed transaction to the mempool.
+  rpc SubmitTransaction(SubmitTxRequest) returns (SubmitTxResponse);
+
+  // GetQVMInfo returns QVM engine metadata (version, opcode counts, features).
+  rpc GetQVMInfo(QVMInfoRequest) returns (QVMInfoResponse);
+
+  // Health returns the health status of the QVM service.
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// ─── ExecuteContract ──────────────────────────────────────────────────
+
+message ExecuteContractRequest {
+  // Caller address (20 bytes, hex-encoded with 0x prefix).
+  string from = 1;
+  // Contract address to call (20 bytes, hex-encoded with 0x prefix).
+  string to = 2;
+  // ABI-encoded calldata (hex-encoded with 0x prefix).
+  string data = 3;
+  // Gas limit for execution. 0 = use default (30,000,000).
+  uint64 gas_limit = 4;
+  // Block height context. 0 = latest.
+  uint64 block_height = 5;
+}
+
+message ExecuteContractResponse {
+  // ABI-encoded return data (hex-encoded with 0x prefix).
+  string return_data = 1;
+  // Gas consumed during execution.
+  uint64 gas_used = 2;
+  // Whether execution succeeded.
+  bool success = 3;
+  // Error message if execution failed.
+  string error = 4;
+}
+
+// ─── DeployContract ───────────────────────────────────────────────────
+
+message DeployContractRequest {
+  // Deployer address (20 bytes, hex-encoded with 0x prefix).
+  string from = 1;
+  // Contract init bytecode (hex-encoded with 0x prefix).
+  string bytecode = 2;
+  // Constructor arguments ABI-encoded (hex-encoded with 0x prefix).
+  string constructor_args = 3;
+  // Gas limit for deployment. 0 = use default.
+  uint64 gas_limit = 4;
+  // Value to send with deployment (wei, decimal string).
+  string value = 5;
+}
+
+message DeployContractResponse {
+  // Deployed contract address (20 bytes, hex-encoded with 0x prefix).
+  string contract_address = 1;
+  // Gas consumed during deployment.
+  uint64 gas_used = 2;
+  // Whether deployment succeeded.
+  bool success = 3;
+  // Error message if deployment failed.
+  string error = 4;
+  // Transaction hash (32 bytes, hex-encoded with 0x prefix).
+  string tx_hash = 5;
+}
+
+// ─── GetStateRoot ─────────────────────────────────────────────────────
+
+message StateRootRequest {
+  // Block height to get state root for. 0 = latest.
+  uint64 block_height = 1;
+}
+
+message StateRootResponse {
+  // Merkle Patricia Trie state root (32 bytes, hex-encoded with 0x prefix).
+  string state_root = 1;
+  // Block height this state root corresponds to.
+  uint64 block_height = 2;
+  // Total number of accounts in the trie.
+  uint64 account_count = 3;
+}
+
+// ─── GetBalance ───────────────────────────────────────────────────────
+
+message BalanceRequest {
+  // Account address (20 bytes, hex-encoded with 0x prefix).
+  string address = 1;
+  // Block height context. 0 = latest.
+  uint64 block_height = 2;
+}
+
+message BalanceResponse {
+  // Balance in wei (hex-encoded with 0x prefix).
+  string balance = 1;
+  // Account nonce.
+  uint64 nonce = 2;
+}
+
+// ─── GetCode ──────────────────────────────────────────────────────────
+
+message CodeRequest {
+  // Contract address (20 bytes, hex-encoded with 0x prefix).
+  string address = 1;
+  // Block height context. 0 = latest.
+  uint64 block_height = 2;
+}
+
+message CodeResponse {
+  // Contract bytecode (hex-encoded with 0x prefix). Empty "0x" if EOA.
+  string code = 1;
+  // Code size in bytes.
+  uint64 code_size = 2;
+}
+
+// ─── GetStorage ───────────────────────────────────────────────────────
+
+message StorageRequest {
+  // Contract address (20 bytes, hex-encoded with 0x prefix).
+  string address = 1;
+  // Storage slot key (32 bytes, hex-encoded with 0x prefix).
+  string key = 2;
+  // Block height context. 0 = latest.
+  uint64 block_height = 3;
+}
+
+message StorageResponse {
+  // Storage value (32 bytes, hex-encoded with 0x prefix).
+  string value = 1;
+}
+
+// ─── EstimateGas ──────────────────────────────────────────────────────
+
+message EstimateGasRequest {
+  // Caller address (20 bytes, hex-encoded with 0x prefix).
+  string from = 1;
+  // Target address (20 bytes, hex-encoded with 0x prefix). Empty for deploy.
+  string to = 2;
+  // Calldata (hex-encoded with 0x prefix).
+  string data = 3;
+  // Value to send (wei, decimal string).
+  string value = 4;
+}
+
+message EstimateGasResponse {
+  // Estimated gas required.
+  uint64 gas = 1;
+  // Whether estimation succeeded.
+  bool success = 2;
+  // Error message if estimation failed.
+  string error = 3;
+}
+
+// ─── SubmitTransaction ────────────────────────────────────────────────
+
+message SubmitTxRequest {
+  // RLP-encoded signed transaction (hex-encoded with 0x prefix).
+  string raw_tx = 1;
+}
+
+message SubmitTxResponse {
+  // Transaction hash (32 bytes, hex-encoded with 0x prefix).
+  string tx_hash = 1;
+  // Whether submission succeeded.
+  bool success = 2;
+  // Error message if submission failed.
+  string error = 3;
+}
+
+// ─── GetQVMInfo ───────────────────────────────────────────────────────
+
+message QVMInfoRequest {}
+
+message QVMInfoResponse {
+  // QVM version string.
+  string version = 1;
+  // Chain ID (3303 mainnet, 3304 testnet).
+  uint64 chain_id = 2;
+  // Current block height.
+  uint64 block_height = 3;
+  // Number of standard EVM opcodes supported.
+  uint32 evm_opcodes = 4;
+  // Number of quantum opcodes supported.
+  uint32 quantum_opcodes = 5;
+  // Block gas limit.
+  uint64 block_gas_limit = 6;
+  // Maximum contract code size in bytes.
+  uint64 max_code_size = 7;
+  // List of supported features.
+  repeated string features = 8;
+}
+
+// ─── Health ───────────────────────────────────────────────────────────
+
+message HealthRequest {}
+
+message HealthResponse {
+  // Whether the QVM service is healthy.
+  bool healthy = 1;
+  // Human-readable status message.
+  string message = 2;
+  // Uptime in seconds.
+  double uptime_seconds = 3;
+  // Number of active goroutines.
+  uint32 goroutines = 4;
+  // Whether subsystems are available.
+  bool state_available = 5;
+  bool vm_available = 6;
+  bool txpool_available = 7;
+  bool blockstore_available = 8;
+}

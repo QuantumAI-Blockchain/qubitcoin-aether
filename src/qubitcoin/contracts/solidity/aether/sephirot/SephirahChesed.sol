@@ -20,6 +20,7 @@ contract SephirahChesed is ISephirah, Initializable {
     uint256 public energyLevel;
     uint256 public cognitiveMass;
 
+    uint256 public activationCount;
     uint256 public hypothesesGenerated;
     uint256 public explorationPaths;
 
@@ -30,6 +31,7 @@ contract SephirahChesed is ISephirah, Initializable {
     event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
+    event ActivationRecorded(uint256 indexed blockNumber, uint256 timestamp, uint256 energyLevel, uint256 cognitiveMass, bytes32 quantumStateHash);
 
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "Chesed: not authorized");
@@ -64,5 +66,10 @@ contract SephirahChesed is ISephirah, Initializable {
     function openExplorationPath(bytes32 pathHash, uint256 branchFactor) external onlyKernel {
         explorationPaths++;
         emit ExplorationPathOpened(pathHash, branchFactor);
+    }
+
+    function recordActivation() external onlyKernel {
+        activationCount++;
+        emit ActivationRecorded(block.number, block.timestamp, energyLevel, cognitiveMass, quantumStateHash);
     }
 }

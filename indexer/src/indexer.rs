@@ -174,6 +174,7 @@ impl Indexer {
         let mut mining_event: Option<MiningEvent> = None;
         let mut difficulty_event: Option<DifficultyEvent> = None;
         let mut susy_event: Option<SusySolutionEvent> = None;
+        let mut phi_event: Option<PhiEvent> = None;
 
         for event in events.iter() {
             let event = match event {
@@ -197,8 +198,10 @@ impl Indexer {
                 ("QbcConsensus", "SusySolutionStored") => {
                     susy_event = decode_susy_event(&event);
                 }
+                ("QbcAetherAnchor", "PhiMeasured") => {
+                    phi_event = decode_phi_event(&event);
+                }
                 _ => {
-                    // Other pallet events — skip for now
                     debug!("Event: {}::{}", pallet, variant);
                 }
             }
@@ -302,6 +305,19 @@ impl Indexer {
             }
         }
 
+        // Store Phi measurement if present (from QbcAetherAnchor pallet)
+        if let Some(ref pe) = phi_event {
+            self.db
+                .insert_phi_measurement(
+                    pe.block_height,
+                    pe.phi_scaled as f64 / 1000.0,
+                    pe.knowledge_nodes,
+                    pe.knowledge_edges,
+                )
+                .await
+                .ok(); // Non-critical
+        }
+
         // Update chain state
         let total_tx = self.db.count_transactions().await.unwrap_or(0);
         let total_addrs = self.db.count_addresses().await.unwrap_or(0);
@@ -399,6 +415,23 @@ fn decode_difficulty_event(
         old_difficulty,
         new_difficulty,
         block_height,
+    })
+}
+
+/// Decode a PhiMeasured event from the Aether anchor pallet.
+fn decode_phi_event(
+    event: &EventDetails<SubstrateConfig>,
+) -> Option<PhiEvent> {
+    let fields = event.field_values().ok()?;
+
+    let block_height = extract_u64_field(&fields, "block_height")?;
+    let phi_scaled = extract_u64_field(&fields, "phi_scaled")?;
+
+    Some(PhiEvent {
+        block_height,
+        phi_scaled,
+        knowledge_nodes: 0, // Not in the event — populated from storage queries
+        knowledge_edges: 0,
     })
 }
 

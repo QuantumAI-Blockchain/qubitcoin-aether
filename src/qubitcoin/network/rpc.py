@@ -543,16 +543,19 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             mempool_size = 0
 
         # In substrate_mode, report the combined chain height (fork_offset + substrate best)
-        # and compute total supply including Substrate-mined blocks
+        # and compute total supply including Substrate-mined blocks.
+        # Supply = premine + (fork_offset + substrate_blocks) * era_reward
+        # We use this formula instead of Python DB total_minted because the DB
+        # may include orphaned blocks mined after the fork offset.
         reported_height = emission_stats['current_height']
         reported_supply = float(emission_stats['total_supply'])
         if substrate_info and substrate_info.get("best_number"):
             reported_height = substrate_info["best_height"]
-            # Supply = Python fork supply + (substrate blocks * current era reward)
-            fork_supply = float(emission_stats['total_supply'])
+            fork_offset = substrate_info.get("fork_offset", 208680)
             substrate_blocks = substrate_info["best_number"]
             era_reward = float(emission_stats.get('current_reward', 15.27))
-            reported_supply = fork_supply + (substrate_blocks * era_reward)
+            premine = float(Config.GENESIS_PREMINE)
+            reported_supply = premine + ((fork_offset + substrate_blocks) * era_reward)
 
         percent_emitted = (reported_supply / float(Config.MAX_SUPPLY) * 100) if Config.MAX_SUPPLY > 0 else 0
 
@@ -590,15 +593,59 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # SUPPLY ENDPOINTS (CoinGecko / CoinMarketCap compatible — plain text)
     # ========================================================================
 
+    def _get_accurate_supply() -> float:
+        """Compute accurate supply accounting for Substrate fork.
+
+        In substrate mode, supply = premine + (fork_offset + substrate_blocks) * era_reward.
+        This avoids double-counting orphaned Python blocks mined after the fork.
+        """
+        if hasattr(app, 'node') and hasattr(app.node, 'substrate_bridge') and app.node.substrate_bridge and app.node.substrate_bridge.is_connected:
+            try:
+                import asyncio
+                info = asyncio.get_event_loop().run_until_complete(app.node.substrate_bridge.get_chain_info()) if not asyncio.get_event_loop().is_running() else None
+                if info and info.get("best_number"):
+                    fork_offset = info.get("fork_offset", 208680)
+                    substrate_blocks = info["best_number"]
+                    era_reward = float(Config.INITIAL_REWARD)
+                    premine = float(Config.GENESIS_PREMINE)
+                    return premine + ((fork_offset + substrate_blocks) * era_reward)
+            except Exception:
+                pass
+        return float(db_manager.get_total_supply())
+
     @app.get("/supply/total")
     async def supply_total():
         """Total QBC supply (circulating). Returns plain text number for CoinGecko/CMC."""
+        if hasattr(app, 'node') and hasattr(app.node, 'substrate_bridge') and app.node.substrate_bridge and app.node.substrate_bridge.is_connected:
+            try:
+                info = await app.node.substrate_bridge.get_chain_info()
+                if info and info.get("best_number"):
+                    fork_offset = info.get("fork_offset", 208680)
+                    substrate_blocks = info["best_number"]
+                    era_reward = float(Config.INITIAL_REWARD)
+                    premine = float(Config.GENESIS_PREMINE)
+                    supply = premine + ((fork_offset + substrate_blocks) * era_reward)
+                    return PlainTextResponse(str(supply))
+            except Exception:
+                pass
         supply = db_manager.get_total_supply()
         return PlainTextResponse(str(float(supply)))
 
     @app.get("/supply/circulating")
     async def supply_circulating():
         """Circulating QBC supply. Returns plain text number for CoinGecko/CMC."""
+        if hasattr(app, 'node') and hasattr(app.node, 'substrate_bridge') and app.node.substrate_bridge and app.node.substrate_bridge.is_connected:
+            try:
+                info = await app.node.substrate_bridge.get_chain_info()
+                if info and info.get("best_number"):
+                    fork_offset = info.get("fork_offset", 208680)
+                    substrate_blocks = info["best_number"]
+                    era_reward = float(Config.INITIAL_REWARD)
+                    premine = float(Config.GENESIS_PREMINE)
+                    supply = premine + ((fork_offset + substrate_blocks) * era_reward)
+                    return PlainTextResponse(str(supply))
+            except Exception:
+                pass
         supply = db_manager.get_total_supply()
         return PlainTextResponse(str(float(supply)))
 
@@ -2215,12 +2262,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # ========================================================================
 
     # Eagerly initialized consciousness dashboard (shared across requests)
-    from ..aether.consciousness import ConsciousnessDashboard
-    _consciousness_dashboard = ConsciousnessDashboard()
+    try:
+        from ..aether.consciousness import ConsciousnessDashboard
+        _consciousness_dashboard = ConsciousnessDashboard()
+    except ImportError:
+        _consciousness_dashboard = None
     app.consciousness_dashboard = _consciousness_dashboard  # type: ignore[attr-defined]
 
     def _get_dashboard():
         """Get the ConsciousnessDashboard instance."""
+        if _consciousness_dashboard is None:
+            raise HTTPException(status_code=503, detail="Consciousness dashboard not available")
         return _consciousness_dashboard
 
     @app.get("/aether/consciousness/dashboard")
@@ -2266,9 +2318,12 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
                     result[role.value] = node.get_status()
             else:
                 # Fallback: return static status from SephirotManager
-                from ..aether.sephirot import SephirotManager
-                mgr = SephirotManager(db_manager)
-                result = mgr.get_status()
+                try:
+                    from ..aether.sephirot import SephirotManager
+                    mgr = SephirotManager(db_manager)
+                    result = mgr.get_status()
+                except ImportError:
+                    result = {}
             # Ensure frontend-expected fields are always present
             result.setdefault('susy_pairs', [
                 {'expansion': 'chesed', 'constraint': 'gevurah', 'ratio': 1.618, 'target_ratio': 1.618},
@@ -2367,15 +2422,18 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     def _get_chat():
         """Get or create the AetherChat instance."""
         if _chat_state['chat'] is None:
-            from ..aether.chat import AetherChat
-            from ..aether.fee_manager import AetherFeeManager
-            fee_mgr = AetherFeeManager(oracle_provider=qusd_oracle)
-            _chat_state['fee_mgr'] = fee_mgr
-            _chat_state['chat'] = AetherChat(
-                aether_engine, db_manager, fee_mgr,
-                llm_manager=llm_manager,
-                fee_collector=fee_collector,
-            )
+            try:
+                from ..aether.chat import AetherChat
+                from ..aether.fee_manager import AetherFeeManager
+                fee_mgr = AetherFeeManager(oracle_provider=qusd_oracle)
+                _chat_state['fee_mgr'] = fee_mgr
+                _chat_state['chat'] = AetherChat(
+                    aether_engine, db_manager, fee_mgr,
+                    llm_manager=llm_manager,
+                    fee_collector=fee_collector,
+                )
+            except ImportError:
+                raise HTTPException(status_code=503, detail="Aether chat not available")
         return _chat_state['chat'], _chat_state['fee_mgr']
 
     class ChatSessionRequest(BaseModel):
@@ -2642,7 +2700,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
             raise HTTPException(status_code=400, detail="max_tokens must be between 64 and 4096")
 
         try:
-            from ..aether.llm_adapter import OpenAIAdapter, KnowledgeDistiller
+            try:
+                from ..aether.llm_adapter import OpenAIAdapter, KnowledgeDistiller
+            except ImportError:
+                raise HTTPException(status_code=503, detail="Aether LLM adapter not available")
 
             # Create a temporary adapter — key lives only in this scope
             adapter = OpenAIAdapter(
@@ -3312,7 +3373,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not aether_engine or not aether_engine._sephirot:
             return
         try:
-            from ..aether.sephirot import SephirahRole
+            try:
+                from ..aether.sephirot import SephirahRole
+            except ImportError:
+                return
             role_map = {i: role for i, role in enumerate(SephirahRole)}
             role = role_map.get(node_id)
             if not role:
@@ -4163,8 +4227,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # AETHER WEBSOCKET STREAMING (/ws/aether)
     # ========================================================================
 
-    from ..aether.ws_streaming import AetherWSManager
-    _aether_ws = AetherWSManager()
+    try:
+        from ..aether.ws_streaming import AetherWSManager
+        _aether_ws = AetherWSManager()
+    except ImportError:
+        _aether_ws = None
     app.aether_ws = _aether_ws  # type: ignore[attr-defined]
 
     @app.websocket("/ws/aether")
@@ -4174,10 +4241,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         Connect with optional query params:
           ?session_id=<uuid>  — bind to a chat session for response streaming
           ?subscribe=phi_update,consciousness_event  — comma-separated events
-
-        Events: aether_response, phi_update, knowledge_node,
-                consciousness_event, circulation_update, token_transfer
         """
+        if _aether_ws is None:
+            await websocket.close(code=1013, reason="Aether WS not available")
+            return
         await websocket.accept()
 
         # Parse query parameters
@@ -4211,24 +4278,33 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/ws/aether/stats")
     async def aether_ws_stats():
         """Get Aether WebSocket streaming statistics."""
+        if _aether_ws is None:
+            return {"error": "Aether WS not available"}
         return _aether_ws.get_stats()
 
     # ========================================================================
     # QBC CIRCULATION TRACKING
     # ========================================================================
 
-    from ..aether.circulation import CirculationTracker
-    _circulation_tracker = CirculationTracker()
+    try:
+        from ..aether.circulation import CirculationTracker
+        _circulation_tracker = CirculationTracker()
+    except ImportError:
+        _circulation_tracker = None
     app.circulation_tracker = _circulation_tracker  # type: ignore[attr-defined]
 
     @app.get("/circulation/stats")
     async def circulation_stats():
         """Get current QBC circulation statistics."""
+        if _circulation_tracker is None:
+            raise HTTPException(status_code=503, detail="Circulation tracker not available")
         return _circulation_tracker.get_stats()
 
     @app.get("/circulation/current")
     async def circulation_current():
         """Get the latest circulation snapshot."""
+        if _circulation_tracker is None:
+            raise HTTPException(status_code=503, detail="Circulation tracker not available")
         current = _circulation_tracker.get_current()
         if not current:
             return {"error": "No circulation data yet. Mine some blocks first."}
@@ -4237,17 +4313,23 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/circulation/history")
     async def circulation_history(limit: int = 100):
         """Get recent circulation snapshots."""
+        if _circulation_tracker is None:
+            raise HTTPException(status_code=503, detail="Circulation tracker not available")
         limit = max(1, min(limit, 1000))
         return {"history": _circulation_tracker.get_history(limit)}
 
     @app.get("/circulation/halvings")
     async def circulation_halvings():
         """Get all recorded phi-halving events."""
+        if _circulation_tracker is None:
+            raise HTTPException(status_code=503, detail="Circulation tracker not available")
         return {"halvings": _circulation_tracker.get_halving_events()}
 
     @app.get("/circulation/emission-schedule")
     async def circulation_emission_schedule(num_eras: int = 10):
         """Get projected emission schedule for upcoming eras."""
+        if _circulation_tracker is None:
+            raise HTTPException(status_code=503, detail="Circulation tracker not available")
         num_eras = max(1, min(num_eras, 50))
         return {"schedule": _circulation_tracker.get_emission_schedule(num_eras)}
 
@@ -4305,8 +4387,11 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     # PROOF-OF-THOUGHT EXPLORER
     # ========================================================================
 
-    from ..aether.pot_explorer import ProofOfThoughtExplorer
-    _pot_explorer = ProofOfThoughtExplorer(aether_engine)
+    try:
+        from ..aether.pot_explorer import ProofOfThoughtExplorer
+        _pot_explorer = ProofOfThoughtExplorer(aether_engine)
+    except ImportError:
+        _pot_explorer = None
     app.pot_explorer = _pot_explorer  # type: ignore[attr-defined]
 
     # NOTE: Literal routes MUST be defined before parameterized routes
@@ -4315,22 +4400,30 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/aether/pot/stats")
     async def get_pot_stats():
         """Get Proof-of-Thought explorer statistics."""
+        if _pot_explorer is None:
+            raise HTTPException(status_code=503, detail="PoT explorer not available")
         return _pot_explorer.get_stats()
 
     @app.get("/aether/pot/phi-progression")
     async def get_phi_progression(limit: int = 100):
         """Get Phi value progression over recent blocks."""
         limit = max(1, min(limit, 1000))
+        if _pot_explorer is None:
+            raise HTTPException(status_code=503, detail="PoT explorer not available")
         return {"progression": _pot_explorer.get_phi_progression(limit)}
 
     @app.get("/aether/pot/consciousness-events")
     async def get_pot_consciousness_events(limit: int = 50):
         """Get blocks where consciousness events occurred."""
+        if _pot_explorer is None:
+            raise HTTPException(status_code=503, detail="PoT explorer not available")
         return {"events": _pot_explorer.get_consciousness_events(limit)}
 
     @app.get("/aether/pot/{block_height}")
     async def get_block_thought(block_height: int):
         """Get Proof-of-Thought data for a specific block."""
+        if _pot_explorer is None:
+            raise HTTPException(status_code=503, detail="PoT explorer not available")
         data = _pot_explorer.get_block_thought(block_height)
         if not data:
             raise HTTPException(status_code=404, detail="No PoT data for this block")
@@ -4339,6 +4432,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/aether/pot/range/{start}/{end}")
     async def get_pot_range(start: int, end: int):
         """Get PoT data for a range of blocks."""
+        if _pot_explorer is None:
+            raise HTTPException(status_code=503, detail="PoT explorer not available")
         if end - start > Config.RPC_BLOCK_RANGE_MAX:
             raise HTTPException(status_code=400, detail=f"Range too large (max {Config.RPC_BLOCK_RANGE_MAX})")
         return {"blocks": _pot_explorer.get_block_range(start, end)}
@@ -4346,6 +4441,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     @app.get("/aether/pot/summary/{block_height}")
     async def get_reasoning_summary(block_height: int):
         """Get human-readable reasoning summary for a block."""
+        if _pot_explorer is None:
+            raise HTTPException(status_code=503, detail="PoT explorer not available")
         return _pot_explorer.get_reasoning_summary(block_height)
 
     # ========================================================================
@@ -5729,7 +5826,10 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not higgs_field:
             return {"error": "Higgs field not initialized"}
         try:
-            from ..aether.sephirot import SephirahRole
+            try:
+                from ..aether.sephirot import SephirahRole
+            except ImportError:
+                return {"error": "Aether sephirot module not available"}
             role = SephirahRole(node_name.lower())
             return {
                 "node": node_name,

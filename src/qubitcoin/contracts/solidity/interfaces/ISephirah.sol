@@ -41,4 +41,7 @@ interface ISephirah {
     event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
+    event ActivationRecorded(uint256 indexed blockNumber, uint256 timestamp, uint256 energyLevel, uint256 cognitiveMass, bytes32 quantumStateHash);
+
+    function recordActivation() external;
 }

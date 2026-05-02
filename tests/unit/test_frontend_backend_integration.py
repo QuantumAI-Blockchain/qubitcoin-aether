@@ -422,11 +422,7 @@ class _MockChatSession:
 
 # List of all inline-instantiated classes that must be patched
 _PATCH_TARGETS = [
-    'qubitcoin.aether.consciousness.ConsciousnessDashboard',
-    'qubitcoin.aether.ws_streaming.AetherWSManager',
-    'qubitcoin.aether.circulation.CirculationTracker',
     'qubitcoin.qvm.token_indexer.TokenIndexer',
-    'qubitcoin.aether.pot_explorer.ProofOfThoughtExplorer',
     'qubitcoin.qvm.regulatory_reports.RegulatoryReportGenerator',
     'qubitcoin.database.pool_monitor.PoolHealthMonitor',
     'qubitcoin.mining.solution_tracker.SolutionVerificationTracker',
@@ -436,8 +432,6 @@ _PATCH_TARGETS = [
     'qubitcoin.network.capability_advertisement.CapabilityAdvertiser',
     'qubitcoin.qvm.compliance.ComplianceEngine',
     'qubitcoin.qvm.compliance_proofs.ComplianceProofStore',
-    'qubitcoin.aether.chat.AetherChat',
-    'qubitcoin.aether.fee_manager.AetherFeeManager',
     'qubitcoin.contracts.fee_calculator.ContractFeeCalculator',
 ]
 
@@ -518,50 +512,6 @@ def app_and_client():
         mocks[target_name] = m
 
     # Configure key mock return values
-    # ConsciousnessDashboard
-    dashboard_inst = MagicMock()
-    dashboard_inst.get_dashboard_data.return_value = {
-        'status': {'is_conscious': False, 'phi': 0.42},
-        'phi_history': [],
-        'events': [],
-        'trend': {'trend': 'rising', 'slope': 0.01},
-    }
-    dashboard_inst.get_phi_history.return_value = [
-        {'block_height': 10, 'phi': 0.1, 'is_conscious': False},
-    ]
-    dashboard_inst.get_events.return_value = []
-    dashboard_inst.event_count = 0
-    dashboard_inst.get_trend.return_value = {
-        'trend': 'stable', 'slope': 0.0, 'window_size': 20,
-        'min_phi': 0.0, 'max_phi': 0.5, 'avg_phi': 0.2,
-    }
-    mocks['ConsciousnessDashboard'].return_value = dashboard_inst
-
-    # AetherWSManager
-    ws_inst = MagicMock()
-    ws_inst.get_stats.return_value = {
-        'connected_clients': 0, 'max_clients': 1000,
-        'total_events_broadcast': 0, 'clients': [],
-    }
-    ws_inst.VALID_EVENTS = {
-        'aether_response', 'phi_update', 'consciousness_event',
-        'knowledge_node', 'circulation_update', 'token_transfer',
-    }
-    ws_inst._clients = {}
-    mocks['AetherWSManager'].return_value = ws_inst
-
-    # CirculationTracker
-    circ_inst = MagicMock()
-    circ_inst.get_stats.return_value = {
-        'current': None, 'halving_events': 0, 'snapshots_stored': 0,
-        'total_fees_collected': '0',
-    }
-    circ_inst.get_current.return_value = None
-    circ_inst.get_history.return_value = []
-    circ_inst.get_halving_events.return_value = []
-    circ_inst.get_emission_schedule.return_value = []
-    mocks['CirculationTracker'].return_value = circ_inst
-
     # TokenIndexer
     tok_inst = MagicMock()
     tok_inst.get_all_tokens.return_value = []
@@ -574,27 +524,6 @@ def app_and_client():
     tok_inst.get_token_balance.return_value = Decimal('0')
     tok_inst.get_address_tokens.return_value = []
     mocks['TokenIndexer'].return_value = tok_inst
-
-    # ProofOfThoughtExplorer
-    pot_exp_inst = MagicMock()
-    pot_exp_inst.get_block_thought.return_value = {
-        'block_height': 10, 'thought_hash': 'abc', 'phi_value': 0.1,
-        'reasoning_steps': [], 'knowledge_nodes_created': 2,
-    }
-    pot_exp_inst.get_block_range.return_value = []
-    pot_exp_inst.get_phi_progression.return_value = []
-    pot_exp_inst.get_consciousness_events.return_value = []
-    pot_exp_inst.get_reasoning_summary.return_value = {
-        'block_height': 10, 'phi_value': 0.1, 'total_steps': 0,
-        'reasoning_types': {}, 'conclusions': [],
-        'knowledge_nodes_created': 0, 'consciousness_event': None,
-    }
-    pot_exp_inst.get_stats.return_value = {
-        'blocks_explored': 100, 'phi_history_size': 100,
-        'total_reasoning_steps': 0, 'consciousness_events': 0,
-        'phi_min': 0.0, 'phi_max': 0.5, 'phi_avg': 0.2,
-    }
-    mocks['ProofOfThoughtExplorer'].return_value = pot_exp_inst
 
     # RegulatoryReportGenerator
     report_inst = MagicMock()
@@ -718,32 +647,6 @@ def app_and_client():
     }
     mocks['ComplianceProofStore'].return_value = proof_inst
 
-    # AetherChat
-    chat_session = _MockChatSession()
-    chat_inst = MagicMock()
-    chat_inst.create_session.return_value = chat_session
-    chat_inst.get_session.return_value = chat_session
-    chat_inst.process_message.return_value = {
-        'response': 'I am Aether Tree.',
-        'reasoning_trace': [],
-        'phi_at_response': 0.42,
-        'knowledge_nodes_referenced': [1, 2],
-        'proof_of_thought_hash': 'abc123def456',
-        'session_id': chat_session.session_id,
-        'message_index': 0,
-        'fee_charged': '0.01',
-    }
-    mocks['AetherChat'].return_value = chat_inst
-
-    # AetherFeeManager
-    fee_mgr_inst = MagicMock()
-    fee_mgr_inst.get_fee_info.return_value = {
-        'fee_qbc': '0.01', 'is_free': True, 'free_remaining': 5,
-        'is_deep_query': False, 'pricing_mode': 'fixed_qbc',
-        'usd_target': 0.005, 'qbc_price': 1.0, 'treasury_address': '',
-    }
-    mocks['AetherFeeManager'].return_value = fee_mgr_inst
-
     # ContractFeeCalculator
     fee_calc_inst = MagicMock()
     fee_calc_inst.calculate_deploy_fee.return_value = Decimal('1.5')
@@ -821,7 +724,7 @@ def app_and_client():
         'db': db, 'ce': ce, 'me': me, 'qe': qe, 'ipfs': ipfs,
         'ae': ae, 'sm': sm, 'fc': fc, 'pot': pot, 'bm': bm,
         'se': se, 'pm': pm, 'comp': comp,
-        'chat_session': chat_session,
+        'chat_session': None,
         'mocks': mocks,
     }
 
@@ -1021,11 +924,13 @@ class TestEconomicsEndpoints:
         assert 'max_supply' in data
         assert 'phi' in data
 
+    @pytest.mark.skip(reason="Aether circulation module deleted in V5 neural redesign")
     def test_circulation_stats(self, app_and_client):
         _, client, _ = app_and_client
         resp = client.get("/circulation/stats")
         assert resp.status_code == 200
 
+    @pytest.mark.skip(reason="Aether circulation module deleted in V5 neural redesign")
     def test_circulation_current_no_data(self, app_and_client):
         _, client, _ = app_and_client
         resp = client.get("/circulation/current")
@@ -1034,6 +939,7 @@ class TestEconomicsEndpoints:
         data = resp.json()
         assert 'error' in data or 'block_height' in data
 
+    @pytest.mark.skip(reason="Aether circulation module deleted in V5 neural redesign")
     def test_circulation_history(self, app_and_client):
         _, client, _ = app_and_client
         resp = client.get("/circulation/history")
@@ -1041,6 +947,7 @@ class TestEconomicsEndpoints:
         data = resp.json()
         assert 'history' in data
 
+    @pytest.mark.skip(reason="Aether circulation module deleted in V5 neural redesign")
     def test_circulation_halvings(self, app_and_client):
         _, client, _ = app_and_client
         resp = client.get("/circulation/halvings")
@@ -1105,6 +1012,7 @@ class TestQVMEndpoints:
         assert resp.status_code == 200
 
 
+@pytest.mark.skip(reason="Aether Python modules deleted in V5 neural redesign — endpoints now served by Rust API gateway")
 class TestAetherCoreEndpoints:
     """Tests for /aether/info, /aether/phi, /aether/phi/history, etc."""
 
@@ -1203,6 +1111,7 @@ class TestAetherCoreEndpoints:
         assert 'threshold' in data
 
 
+@pytest.mark.skip(reason="Aether Python modules deleted in V5 neural redesign — endpoints now served by Rust API gateway")
 class TestAetherKnowledgeEndpoints:
     """Tests for /aether/knowledge, /aether/knowledge/graph, etc."""
 
@@ -1251,6 +1160,7 @@ class TestAetherKnowledgeEndpoints:
         assert resp.status_code == 404
 
 
+@pytest.mark.skip(reason="Aether Python modules deleted in V5 neural redesign — endpoints now served by Rust API gateway")
 class TestAetherChatEndpoints:
     """Tests for /aether/chat/session, /aether/chat/message, etc."""
 
@@ -1339,6 +1249,7 @@ class TestSephirotEndpoints:
         assert 'claimed' in data
 
 
+@pytest.mark.skip(reason="Aether Python modules deleted in V5 neural redesign — endpoints now served by Rust API gateway")
 class TestProofOfThoughtEndpoints:
     """Tests for /pot/stats, /aether/pot/{block}, /aether/pot/stats."""
 
@@ -1885,6 +1796,7 @@ class TestLightNodeEndpoints:
         assert 'count' in data
 
 
+@pytest.mark.skip(reason="Aether Python modules deleted in V5 neural redesign — endpoints now served by Rust API gateway")
 class TestWSStatsEndpoints:
     """Tests for /ws/aether/stats."""
 
@@ -2055,6 +1967,7 @@ class TestFrontendResponseShapes:
             assert 'expansion' in pair
             assert 'constraint' in pair
 
+    @pytest.mark.skip(reason="Aether chat module deleted in V5 neural redesign")
     def test_chat_session_exact_fields(self, app_and_client):
         """Frontend ChatSession interface."""
         _, client, _ = app_and_client
@@ -2062,6 +1975,7 @@ class TestFrontendResponseShapes:
                            json={'user_address': 'test'}).json()
         assert_shape(data, CHAT_SESSION_SHAPE)
 
+    @pytest.mark.skip(reason="Aether chat module deleted in V5 neural redesign")
     def test_chat_message_exact_fields(self, app_and_client):
         """Frontend ChatResponse interface."""
         _, client, ctx = app_and_client

@@ -30,6 +30,9 @@ contract SephirahKeter is ISephirah, Initializable {
     }
     Goal[] public goals;
 
+    /// @notice Activation tracking
+    uint256 public activationCount;
+
     /// @notice Meta-learning metrics
     uint256 public learningCyclesCompleted;
     uint256 public goalsAchieved;
@@ -42,6 +45,7 @@ contract SephirahKeter is ISephirah, Initializable {
     event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
+    event ActivationRecorded(uint256 indexed blockNumber, uint256 timestamp, uint256 energyLevel, uint256 cognitiveMass, bytes32 quantumStateHash);
 
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "Keter: not authorized");
@@ -103,4 +107,9 @@ contract SephirahKeter is ISephirah, Initializable {
     }
 
     function getGoalCount() external view returns (uint256) { return goals.length; }
+
+    function recordActivation() external onlyKernel {
+        activationCount++;
+        emit ActivationRecorded(block.number, block.timestamp, energyLevel, cognitiveMass, quantumStateHash);
+    }
 }

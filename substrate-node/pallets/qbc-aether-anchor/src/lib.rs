@@ -10,6 +10,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+pub mod contract_bridge;
 
 #[frame_support::pallet]
 pub mod pallet {

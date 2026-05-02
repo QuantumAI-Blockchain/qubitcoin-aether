@@ -20,6 +20,7 @@ contract SephirahHod is ISephirah, Initializable {
     uint256 public energyLevel;
     uint256 public cognitiveMass;
 
+    uint256 public activationCount;
     uint256 public semanticEncodings;
     uint256 public messagesComposed;
     uint256 public queriesTranslated;
@@ -32,6 +33,7 @@ contract SephirahHod is ISephirah, Initializable {
     event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
+    event ActivationRecorded(uint256 indexed blockNumber, uint256 timestamp, uint256 energyLevel, uint256 cognitiveMass, bytes32 quantumStateHash);
 
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "Hod: not authorized");
@@ -71,5 +73,10 @@ contract SephirahHod is ISephirah, Initializable {
     function translateQuery(bytes32 nlHash, bytes32 structuredHash) external onlyKernel {
         queriesTranslated++;
         emit QueryTranslated(nlHash, structuredHash);
+    }
+
+    function recordActivation() external onlyKernel {
+        activationCount++;
+        emit ActivationRecorded(block.number, block.timestamp, energyLevel, cognitiveMass, quantumStateHash);
     }
 }

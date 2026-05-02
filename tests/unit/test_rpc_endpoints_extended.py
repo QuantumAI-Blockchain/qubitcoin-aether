@@ -229,43 +229,8 @@ def app_and_client():
         target_name = _PATCH_TARGETS[i].split('.')[-1]
         mocks[target_name] = m
 
-    # Configure key mock return values (same as base fixture)
-    dashboard_inst = MagicMock()
-    dashboard_inst.get_dashboard_data.return_value = {
-        'status': {'is_conscious': False, 'phi': 0.42},
-        'phi_history': [], 'events': [],
-        'trend': {'trend': 'rising', 'slope': 0.01},
-    }
-    dashboard_inst.get_phi_history.return_value = []
-    dashboard_inst.get_events.return_value = []
-    dashboard_inst.event_count = 0
-    dashboard_inst.get_trend.return_value = {
-        'trend': 'stable', 'slope': 0.0, 'window_size': 20,
-        'min_phi': 0.0, 'max_phi': 0.5, 'avg_phi': 0.2,
-    }
-    mocks['ConsciousnessDashboard'].return_value = dashboard_inst
-
-    ws_inst = MagicMock()
-    ws_inst.get_stats.return_value = {
-        'connected_clients': 0, 'max_clients': 1000,
-        'total_events_broadcast': 0, 'clients': [],
-    }
-    ws_inst.VALID_EVENTS = {
-        'aether_response', 'phi_update', 'consciousness_event',
-        'knowledge_node', 'circulation_update', 'token_transfer',
-    }
-    ws_inst._clients = {}
-    mocks['AetherWSManager'].return_value = ws_inst
-
-    circ_inst = MagicMock()
-    circ_inst.get_stats.return_value = {
-        'current': None, 'halving_events': 0, 'snapshots_stored': 0,
-        'total_fees_collected': '0',
-    }
-    circ_inst.get_emission_schedule.return_value = [
-        {'era': 0, 'reward': 15.27, 'start_block': 0},
-    ]
-    mocks['CirculationTracker'].return_value = circ_inst
+    # V5 Neural Redesign: ConsciousnessDashboard, AetherWSManager,
+    # CirculationTracker deleted — no longer in _PATCH_TARGETS
 
     tok_inst = MagicMock()
     tok_inst.get_all_tokens.return_value = []
@@ -279,27 +244,7 @@ def app_and_client():
     tok_inst.get_address_tokens.return_value = []
     mocks['TokenIndexer'].return_value = tok_inst
 
-    pot_exp_inst = MagicMock()
-    pot_exp_inst.get_block_thought.return_value = {
-        'block_height': 10, 'thought_hash': 'abc', 'phi_value': 0.1,
-        'reasoning_steps': [], 'knowledge_nodes_created': 2,
-    }
-    pot_exp_inst.get_block_range.return_value = []
-    pot_exp_inst.get_phi_progression.return_value = [
-        {'block_height': 1, 'phi': 0.01}, {'block_height': 2, 'phi': 0.02},
-    ]
-    pot_exp_inst.get_consciousness_events.return_value = []
-    pot_exp_inst.get_reasoning_summary.return_value = {
-        'block_height': 10, 'phi_value': 0.1, 'total_steps': 0,
-        'reasoning_types': {}, 'conclusions': [],
-        'knowledge_nodes_created': 0, 'consciousness_event': None,
-    }
-    pot_exp_inst.get_stats.return_value = {
-        'blocks_explored': 100, 'phi_history_size': 100,
-        'total_reasoning_steps': 0, 'consciousness_events': 0,
-        'phi_min': 0.0, 'phi_max': 0.5, 'phi_avg': 0.2,
-    }
-    mocks['ProofOfThoughtExplorer'].return_value = pot_exp_inst
+    # V5 Neural Redesign: ProofOfThoughtExplorer deleted
 
     report_inst = MagicMock()
     report_inst.get_stats.return_value = {
@@ -441,27 +386,7 @@ def app_and_client():
     }
     mocks['ComplianceProofStore'].return_value = proof_inst
 
-    chat_session = _MockChatSession()
-    chat_inst = MagicMock()
-    chat_inst.create_session.return_value = chat_session
-    chat_inst.get_session.return_value = chat_session
-    chat_inst.process_message.return_value = {
-        'response': 'I am Aether Tree.',
-        'reasoning_trace': [],
-        'phi_at_response': 0.42,
-        'knowledge_nodes_referenced': [1, 2],
-        'proof_of_thought_hash': 'abc123def456',
-        'session_id': chat_session.session_id,
-        'message_index': 0,
-        'fee_charged': '0.01',
-    }
-    mocks['AetherChat'].return_value = chat_inst
-
-    fee_mgr_inst = MagicMock()
-    fee_mgr_inst.get_fee_info.return_value = {
-        'fee_qbc': '0.01', 'is_free': True, 'free_remaining': 5,
-    }
-    mocks['AetherFeeManager'].return_value = fee_mgr_inst
+    # V5 Neural Redesign: AetherChat, AetherFeeManager deleted
 
     fee_calc_inst = MagicMock()
     fee_calc_inst.calculate_deploy_fee.return_value = Decimal('1.5')
@@ -548,7 +473,7 @@ def app_and_client():
         'reserve_verifier': reserve_verifier,
         'sephirot_mgr': sephirot_mgr,
         'mock_node': mock_node,
-        'chat_session': chat_session,
+        'chat_session': None,  # V5: AetherChat deleted
         'mocks': mocks,
     }
 
@@ -1579,6 +1504,7 @@ class TestQUSDExtendedEndpoints:
         assert 'verified' in data or 'milestones' in data
 
 
+@pytest.mark.skip(reason="Aether circulation module deleted in V5 neural redesign")
 class TestCirculationEmissionSchedule:
     """GET /circulation/emission-schedule."""
 
@@ -1684,6 +1610,7 @@ class TestTokenHoldersTransfersBalance:
         assert 'transfers' in data
 
 
+@pytest.mark.skip(reason="Aether PoT module deleted in V5 neural redesign")
 class TestPOTExplorerExtended:
     """GET /aether/pot/phi-progression, consciousness-events, range, summary."""
 

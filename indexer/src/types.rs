@@ -53,6 +53,15 @@ pub struct SusySolutionEvent {
     pub n_qubits: u8,
 }
 
+/// A Phi measurement event from the Aether anchor pallet.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhiEvent {
+    pub block_height: u64,
+    pub phi_scaled: u64,
+    pub knowledge_nodes: u64,
+    pub knowledge_edges: u64,
+}
+
 /// A UTXO created from a coinbase or transfer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IndexedUtxo {

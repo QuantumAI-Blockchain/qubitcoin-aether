@@ -23,6 +23,7 @@ import (
 
 	"go.uber.org/zap"
 
+	qvmgrpc "github.com/BlockArtica/qubitcoin-qvm/pkg/grpc"
 	"github.com/BlockArtica/qubitcoin-qvm/pkg/rpc"
 )
 
@@ -62,14 +63,16 @@ func printUsage() {
 	fmt.Println("Server flags:")
 	fmt.Println("  --http ADDR          HTTP listen address (default :8080, env QVM_HTTP_ADDR)")
 	fmt.Println("  --grpc ADDR          gRPC listen address (default :50052, env QVM_GRPC_ADDR)")
+	fmt.Println("  --grpc-sidecar ADDR  gRPC sidecar listen address (default :50053, env QVM_GRPC_SIDECAR_ADDR)")
 	fmt.Println("  --chain-id ID        Chain ID (default 3303, env QVM_CHAIN_ID)")
 	fmt.Println()
 	fmt.Println("Environment variables:")
-	fmt.Println("  QVM_HTTP_ADDR        HTTP listen address")
-	fmt.Println("  QVM_GRPC_ADDR        gRPC listen address")
-	fmt.Println("  QVM_CHAIN_ID         Chain ID (3303=mainnet, 3304=testnet)")
-	fmt.Println("  QVM_CORS_ORIGINS     Comma-separated CORS origins")
-	fmt.Println("  QVM_LOG_LEVEL        Log level: debug, info, warn, error")
+	fmt.Println("  QVM_HTTP_ADDR            HTTP listen address")
+	fmt.Println("  QVM_GRPC_ADDR            gRPC listen address")
+	fmt.Println("  QVM_GRPC_SIDECAR_ADDR    gRPC sidecar listen address (Substrate bridge)")
+	fmt.Println("  QVM_CHAIN_ID             Chain ID (3303=mainnet, 3304=testnet)")
+	fmt.Println("  QVM_CORS_ORIGINS         Comma-separated CORS origins")
+	fmt.Println("  QVM_LOG_LEVEL            Log level: debug, info, warn, error")
 }
 
 func serve() {
@@ -110,15 +113,27 @@ func serve() {
 		Version:     version,
 	}
 
-	// Create and start server
+	// Create and start HTTP/gRPC server
 	server := rpc.NewServer(config, services, logger)
 	if err := server.Start(); err != nil {
 		logger.Fatal("failed to start server", zap.Error(err))
 	}
 
+	// Start the gRPC sidecar for Substrate node communication.
+	grpcSidecarAddr := getEnvOrFlag("QVM_GRPC_SIDECAR_ADDR", "--grpc-sidecar")
+	if grpcSidecarAddr == "" {
+		grpcSidecarAddr = qvmgrpc.DefaultGRPCPort // ":50053"
+	}
+
+	sidecar := qvmgrpc.NewServer(services, logger)
+	if err := sidecar.Start(grpcSidecarAddr); err != nil {
+		logger.Fatal("failed to start gRPC sidecar", zap.Error(err))
+	}
+
 	logger.Info("QVM server is ready",
 		zap.String("http", config.HTTPAddr),
 		zap.String("grpc", config.GRPCAddr),
+		zap.String("grpc_sidecar", grpcSidecarAddr),
 		zap.Uint64("chain_id", config.ChainID),
 	)
 
@@ -132,6 +147,9 @@ func serve() {
 	// Graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+
+	// Stop the gRPC sidecar first.
+	sidecar.Stop()
 
 	if err := server.Stop(ctx); err != nil {
 		logger.Error("error during shutdown", zap.Error(err))

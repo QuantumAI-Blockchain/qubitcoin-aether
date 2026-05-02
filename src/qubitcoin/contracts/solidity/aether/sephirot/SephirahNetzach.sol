@@ -20,6 +20,7 @@ contract SephirahNetzach is ISephirah, Initializable {
     uint256 public energyLevel;
     uint256 public cognitiveMass;
 
+    uint256 public activationCount;
     uint256 public policiesLearned;
     uint256 public habitsFormed;
     uint256 public reinforcementCycles;
@@ -32,6 +33,7 @@ contract SephirahNetzach is ISephirah, Initializable {
     event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
+    event ActivationRecorded(uint256 indexed blockNumber, uint256 timestamp, uint256 energyLevel, uint256 cognitiveMass, bytes32 quantumStateHash);
 
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "Netzach: not authorized");
@@ -71,5 +73,10 @@ contract SephirahNetzach is ISephirah, Initializable {
     function recordReinforcement(int256 reward) external onlyKernel {
         reinforcementCycles++;
         emit ReinforcementCycle(reinforcementCycles, reward);
+    }
+
+    function recordActivation() external onlyKernel {
+        activationCount++;
+        emit ActivationRecorded(block.number, block.timestamp, energyLevel, cognitiveMass, quantumStateHash);
     }
 }

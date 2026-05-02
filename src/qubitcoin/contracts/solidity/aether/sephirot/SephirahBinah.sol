@@ -20,6 +20,7 @@ contract SephirahBinah is ISephirah, Initializable {
     uint256 public energyLevel;
     uint256 public cognitiveMass;
 
+    uint256 public activationCount;
     uint256 public logicalInferences;
     uint256 public causalChainsBuilt;
     uint256 public truthVerifications;
@@ -32,6 +33,7 @@ contract SephirahBinah is ISephirah, Initializable {
     event MassChanged(uint256 oldMass, uint256 newMass);
     event MessageProcessed(uint8 indexed fromNodeId, bytes32 indexed messageType);
     event SolutionSubmitted(uint256 indexed taskId, bytes32 solutionHash);
+    event ActivationRecorded(uint256 indexed blockNumber, uint256 timestamp, uint256 energyLevel, uint256 cognitiveMass, bytes32 quantumStateHash);
 
     modifier onlyKernel() {
         require(msg.sender == kernel || msg.sender == owner, "Binah: not authorized");
@@ -71,5 +73,10 @@ contract SephirahBinah is ISephirah, Initializable {
     function verifyTruth(bytes32 claimHash, bool result) external onlyKernel {
         truthVerifications++;
         emit TruthVerified(claimHash, result);
+    }
+
+    function recordActivation() external onlyKernel {
+        activationCount++;
+        emit ActivationRecorded(block.number, block.timestamp, energyLevel, cognitiveMass, quantumStateHash);
     }
 }

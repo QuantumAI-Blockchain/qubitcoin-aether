@@ -152,6 +152,7 @@ impl Database {
                 block_height INT8,
                 miner_address BYTES,
                 ground_state_energy DECIMAL(20,10),
+                n_qubits INT2 DEFAULT 4,
                 alignment_score FLOAT8 DEFAULT 100.0,
                 is_verified BOOL DEFAULT true,
                 discovered_timestamp TIMESTAMPTZ DEFAULT now()
@@ -420,9 +421,9 @@ impl Database {
             r#"
             INSERT INTO idx_susy_solutions (
                 solution_id, block_hash, block_height, miner_address,
-                ground_state_energy, alignment_score, is_verified,
+                ground_state_energy, n_qubits, alignment_score, is_verified,
                 discovered_timestamp
-            ) VALUES ($1, $2, $3, $4, $5, 100.0, true, now())
+            ) VALUES ($1, $2, $3, $4, $5, $6, 100.0, true, now())
             ON CONFLICT DO NOTHING
             "#,
         )
@@ -431,6 +432,7 @@ impl Database {
         .bind(block_height as i64)
         .bind(miner_address)
         .bind(energy)
+        .bind(n_qubits as i16)
         .execute(&self.pool)
         .await?;
 
