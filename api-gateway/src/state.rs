@@ -312,7 +312,8 @@ impl SubstrateRpc {
 
         let supply = match total_emitted {
             Some(raw) => raw as f64 / BALANCE_DECIMALS,
-            None => GENESIS_PREMINE + (substrate_height as f64 * block_reward),
+            // Fallback: premine + all blocks (fork offset + substrate) × reward
+            None => GENESIS_PREMINE + ((FORK_OFFSET as f64 + substrate_height as f64) * block_reward),
         };
 
         let (peers, is_syncing) = match health {
