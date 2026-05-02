@@ -102,6 +102,8 @@ pub mod pallet {
         ThoughtProofRecorded { block_height: u64, proof_hash: H256 },
         /// Service endpoint was updated.
         EndpointUpdated,
+        /// Neural payload hash was recorded on-chain.
+        NeuralPayloadRecorded { block_height: u64, payload_hash: H256 },
     }
 
     /// Maximum allowed Phi change per block (scaled by 1000).
@@ -129,6 +131,14 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn phi_outlier_count)]
     pub type PhiOutlierCount<T: Config> = StorageValue<_, u64, ValueQuery>;
+
+    /// Latest neural payload verification hash.
+    /// Records the SHA-256 hash of the gradient/embedding payload from the
+    /// aether-mind neural engine for each block, enabling on-chain attestation
+    /// of distributed training contributions.
+    #[pallet::storage]
+    #[pallet::getter(fn neural_payload_hash)]
+    pub type NeuralPayloadHash<T: Config> = StorageValue<_, H256, ValueQuery>;
 
     #[pallet::error]
     pub enum Error<T> {
@@ -194,6 +204,7 @@ pub mod pallet {
             knowledge_edges: u64,
             thought_proof_hash: H256,
             reasoning_ops: u64,
+            neural_payload_hash: H256,
         ) -> DispatchResult {
             // Accept both root and signed origins (validators submit PoT after each block)
             if ensure_root(origin.clone()).is_err() {
@@ -261,6 +272,15 @@ pub mod pallet {
                 block_height,
                 proof_hash: thought_proof_hash,
             });
+
+            // Store neural payload hash for on-chain training attestation
+            if neural_payload_hash != H256::zero() {
+                NeuralPayloadHash::<T>::put(neural_payload_hash);
+                Self::deposit_event(Event::NeuralPayloadRecorded {
+                    block_height,
+                    payload_hash: neural_payload_hash,
+                });
+            }
 
             Ok(())
         }

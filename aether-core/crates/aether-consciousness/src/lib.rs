@@ -689,6 +689,24 @@ impl CompressedGradients {
     pub fn nnz(&self) -> usize {
         self.indices.len()
     }
+
+    /// Compute a SHA-256 content hash over the gradient indices and values.
+    /// Used for signature verification — miners sign this hash to prove
+    /// they authored the gradient update.
+    pub fn content_hash(&self) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        for &idx in &self.indices {
+            hasher.update(idx.to_le_bytes());
+        }
+        for &val in &self.values {
+            hasher.update(val.to_le_bytes());
+        }
+        hasher.update(self.total_params.to_le_bytes());
+        let result = hasher.finalize();
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&result);
+        hash
+    }
 }
 
 // ── Proof-of-Learning ────────────────────────────────────────────────────────
@@ -983,6 +1001,15 @@ impl ArchitectureGenome {
         child
     }
 
+    /// Extract hot-swappable parameters that can be applied without restarting.
+    /// Returns (learning_rate, dropout_rate, temperature/qk_scale).
+    /// Structural changes (layers, heads, embedding_dim) require restart.
+    pub fn hot_params(&self) -> (f32, f32, f32) {
+        // Temperature derived from ffn_multiplier: higher multiplier → higher temperature
+        let temperature = (self.ffn_multiplier / 4.0).clamp(0.5, 2.0);
+        (self.learning_rate, self.dropout, temperature)
+    }
+
     /// Compute a hash of this genome for identification.
     pub fn hash(&self) -> Vec<u8> {
         let mut hasher = Sha256::new();
@@ -1062,6 +1089,15 @@ impl EvolveArchive {
             return 0.0;
         }
         self.improvements as f32 / self.total_mutations as f32
+    }
+
+    /// Update the active genome's fitness from a measured validation loss.
+    /// Called by the background fitness evaluation task.
+    pub fn update_active_fitness(&mut self, fitness: f32) {
+        self.active_genome.fitness = fitness;
+        if fitness < self.best_fitness {
+            self.best_fitness = fitness;
+        }
     }
 }
 

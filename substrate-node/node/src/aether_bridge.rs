@@ -44,6 +44,12 @@ struct PotData {
     chain_height: u64,
 }
 
+/// Neural payload response (subset of fields we need).
+#[derive(serde::Deserialize, Debug)]
+struct NeuralPayloadResponse {
+    verification_hash: String,
+}
+
 /// Gates status response.
 #[derive(serde::Deserialize, Debug)]
 struct GatesResponse {
@@ -118,6 +124,24 @@ pub async fn run_aether_bridge(
         let chain_height = pot_data.chain_height;
         let knowledge_vectors = pot_data.knowledge_vectors;
 
+        // Fetch neural payload hash from aether-mind
+        let neural_hash = {
+            let payload_url = format!("{}/aether/neural-payload", aether_url);
+            match http.get(&payload_url).send().await {
+                Ok(resp) => match resp.json::<NeuralPayloadResponse>().await {
+                    Ok(data) => {
+                        let hex_str = data.verification_hash.trim_start_matches("0x");
+                        match hex::decode(hex_str) {
+                            Ok(bytes) if bytes.len() == 32 => H256::from_slice(&bytes),
+                            _ => H256::zero(),
+                        }
+                    }
+                    Err(_) => H256::zero(),
+                },
+                Err(_) => H256::zero(),
+            }
+        };
+
         // Build the record_block_state call
         let call = qbc_runtime::RuntimeCall::QbcAetherAnchor(
             pallet_qbc_aether_anchor::Call::record_block_state {
@@ -128,6 +152,7 @@ pub async fn run_aether_bridge(
                 knowledge_edges: 0, // Phase 2: edge count
                 thought_proof_hash,
                 reasoning_ops: 0, // Phase 2: reasoning op count
+                neural_payload_hash: neural_hash,
             },
         );
 

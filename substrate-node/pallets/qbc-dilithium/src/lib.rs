@@ -267,6 +267,40 @@ pub mod pallet {
             Self::deposit_event(Event::KeyRevoked { address });
             Ok(())
         }
+
+        /// Register a Dilithium5 public key for a specific address (sudo only).
+        ///
+        /// This allows associating a Dilithium key with an address that wasn't
+        /// derived from that key (e.g., mining coinbase addresses derived from
+        /// Ed25519 keys). Required for spending coinbase UTXOs via submit_transaction.
+        #[pallet::call_index(2)]
+        #[pallet::weight(260_000)]
+        pub fn sudo_register_key_for_address(
+            origin: OriginFor<T>,
+            address: Address,
+            public_key: BoundedVec<u8, ConstU32<MAX_DILITHIUM_PK_SIZE>>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+
+            ensure!(
+                public_key.len() == DILITHIUM5_PK_SIZE as usize,
+                Error::<T>::InvalidPublicKey
+            );
+            ensure!(
+                !PublicKeys::<T>::contains_key(&address),
+                Error::<T>::KeyAlreadyRegistered
+            );
+            ensure!(
+                !RevokedKeys::<T>::get(&address),
+                Error::<T>::KeyRevoked
+            );
+
+            PublicKeys::<T>::insert(&address, &public_key);
+            TotalKeys::<T>::mutate(|n| *n = n.saturating_add(1));
+
+            Self::deposit_event(Event::KeyRegistered { address });
+            Ok(())
+        }
     }
 
     impl<T: Config> Pallet<T> {

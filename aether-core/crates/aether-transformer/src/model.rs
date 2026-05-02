@@ -298,4 +298,53 @@ impl AetherTransformer {
     pub fn embedding_weights(&self) -> &Tensor {
         &self.embed_weight
     }
+
+    /// Apply accumulated embedding deltas to the model's embedding weight tensor.
+    ///
+    /// This closes the gradient→weight gap: FedAvg deltas from distributed training
+    /// actually update the model parameters. Deltas are scaled by `learning_rate`
+    /// and clipped to a max gradient norm of 1.0 before application.
+    ///
+    /// # Arguments
+    /// * `deltas` - Flat delta vector (length = vocab_size * embed_dim)
+    /// * `learning_rate` - Scaling factor for gradient application
+    pub fn apply_embedding_deltas(&mut self, deltas: &[f32], learning_rate: f32) -> Result<()> {
+        let expected_len = self.config.vocab_size * self.config.embed_dim;
+        if deltas.len() != expected_len {
+            log::warn!(
+                "Embedding delta dimension mismatch: got {}, expected {} (vocab={} × dim={}). Skipping.",
+                deltas.len(), expected_len, self.config.vocab_size, self.config.embed_dim
+            );
+            return Ok(());
+        }
+
+        // Compute L2 norm and clip to max_norm=1.0
+        let norm: f32 = deltas.iter().map(|d| d * d).sum::<f32>().sqrt();
+        if norm < 1e-10 {
+            return Ok(());
+        }
+        let clip_scale = if norm > 1.0 { 1.0 / norm } else { 1.0 };
+        let effective_lr = learning_rate * clip_scale;
+
+        // Build delta tensor: shape (vocab_size, embed_dim), scaled by lr
+        let scaled: Vec<f32> = deltas.iter().map(|d| d * effective_lr).collect();
+        let delta_tensor = Tensor::from_vec(
+            scaled,
+            (self.config.vocab_size, self.config.embed_dim),
+            &self.device,
+        )?;
+
+        // Update: embed_weight = embed_weight + delta_tensor
+        self.embed_weight = (&self.embed_weight + &delta_tensor)?;
+
+        // Also update the embedding layer to stay in sync
+        let new_embed = Embedding::new(self.embed_weight.clone(), self.config.embed_dim);
+        self.embed_tokens = new_embed;
+
+        log::info!(
+            "Applied embedding deltas: norm={:.6}, clip={:.4}, effective_lr={:.6}",
+            norm, clip_scale, effective_lr
+        );
+        Ok(())
+    }
 }
