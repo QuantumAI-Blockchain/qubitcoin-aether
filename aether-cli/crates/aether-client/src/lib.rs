@@ -194,13 +194,7 @@ pub struct GradientStatusResponse {
 
 impl AetherClient {
     pub fn new(base_url: &str) -> Self {
-        let base = base_url.trim_end_matches('/');
-        // Add /v1 prefix if not already present and not a direct service URL (port-based)
-        let base_url = if base.contains("localhost") || base.contains("127.0.0.1") {
-            base.to_string()
-        } else {
-            format!("{}/v1", base)
-        };
+        let base_url = base_url.trim_end_matches('/').to_string();
         Self {
             base_url,
             http: reqwest::Client::builder()
@@ -262,9 +256,10 @@ impl AetherClient {
     }
 
     pub async fn health(&self) -> Result<HealthResponse> {
+        // aether-mind serves health at /health (not /aether/health)
         let resp = self
             .http
-            .get(format!("{}/aether/health", self.base_url))
+            .get(format!("{}/health", self.base_url))
             .send()
             .await
             .context("failed to reach aether-mind")?;

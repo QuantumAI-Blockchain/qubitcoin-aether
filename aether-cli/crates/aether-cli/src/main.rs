@@ -728,7 +728,9 @@ async fn cmd_wallet(action: WalletAction) -> Result<()> {
             let sigs = vec![sig];
 
             // Pallet index for QbcUtxo — must match runtime construct_runtime! order
-            const UTXO_PALLET_INDEX: u8 = 3;
+            // System=0, Timestamp=1, Aura=2, Grandpa=3, Balances=4, TransactionPayment=5,
+            // Sudo=6, QbcDilithium=7, QbcUtxo=8, QbcEconomics=9, QbcConsensus=10
+            const UTXO_PALLET_INDEX: u8 = 8;
             let call_data = aether_client::substrate::SubstrateClient::encode_utxo_transaction_call(
                 UTXO_PALLET_INDEX,
                 &inputs,
@@ -782,7 +784,8 @@ async fn cmd_wallet(action: WalletAction) -> Result<()> {
             println!("  Address:    {}", addr);
             println!("  PK size:    {} bytes", pk_bytes.len());
 
-            const DILITHIUM_PALLET_INDEX: u8 = 4;
+            // QbcDilithium=7 in runtime construct_runtime! order
+            const DILITHIUM_PALLET_INDEX: u8 = 7;
             let call_data = aether_client::substrate::SubstrateClient::encode_register_key_call(
                 DILITHIUM_PALLET_INDEX,
                 &pk_bytes,
