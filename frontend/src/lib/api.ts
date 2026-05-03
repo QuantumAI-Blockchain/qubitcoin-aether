@@ -917,7 +917,7 @@ export const api = {
 
   /** Aether Mind health check. */
   getAetherHealth: async () => {
-    const resp = await fetch(`${AETHER_URL}/aether/health`);
+    const resp = await fetch(`${AETHER_URL}/health`);
     return resp.json() as Promise<AetherEngineHealth>;
   },
 

@@ -67,9 +67,19 @@ pub async fn mining_stats(State(state): State<AppState>) -> Json<Value> {
     let phi: f64 = 1.618033988749895;
     let block_reward = 15.27 / phi.powi(era as i32);
 
+    let diff_f64: f64 = difficulty.parse().unwrap_or(0.5);
+
     Json(json!({
+        // Fields the frontend MiningStats interface expects
+        "is_mining": true,
+        "blocks_found": blocks_mined,
+        "total_attempts": blocks_mined,
+        "current_difficulty": diff_f64,
+        "success_rate": if blocks_mined > 0 { 1.0 } else { 0.0 },
+        "best_energy": Value::Null,
+        "alignment_score": Value::Null,
+        // Extended fields
         "block_height": height,
-        "current_difficulty": difficulty,
         "current_era": era,
         "current_reward": format!("{:.8}", block_reward),
         "blocks_mined_substrate": blocks_mined,

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
 import { motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { api, type ChatResponse, type AetherChatTurn } from "@/lib/api";
@@ -19,14 +18,8 @@ import {
   loadSessionMessages,
   deleteSessionStorage,
 } from "@/components/aether/conversation-sidebar";
-import { KnowledgeSeeder } from "@/components/aether/knowledge-seeder";
 import { ContributionIndicator } from "@/components/aikgs/contribution-indicator";
 import { useWalletStore, getAuthToken } from "@/stores/wallet-store";
-
-const KnowledgeGraph3D = dynamic(
-  () => import("@/components/aether/knowledge-graph-3d").then((m) => m.KnowledgeGraph3D),
-  { ssr: false, loading: () => <div className="h-[400px] rounded-lg bg-bg-deep animate-pulse" /> },
-);
 
 interface Message {
   id: string;
@@ -504,13 +497,42 @@ function AetherPageContent() {
             </div>
           )}
 
-          {/* Knowledge Graph — mounted fresh when tab is active, fills viewport */}
+          {/* Knowledge Vectors — stats display */}
           {activeTab === "graph" && (
             <div className="flex-1 min-h-0 p-4">
-              <div className="mx-auto max-w-6xl h-full">
-                <ErrorBoundary>
-                  <KnowledgeGraph3D />
-                </ErrorBoundary>
+              <div className="mx-auto max-w-3xl">
+                <Card className="p-6">
+                  <h3 className="mb-4 font-[family-name:var(--font-display)] text-xl font-bold text-text-primary">
+                    Knowledge Fabric
+                  </h3>
+                  <p className="mb-2 text-sm text-text-secondary">
+                    The Aether Mind stores learned knowledge as high-dimensional vector embeddings
+                    in an HNSW (Hierarchical Navigable Small World) index, enabling O(log n) semantic search
+                    across the entire knowledge fabric.
+                  </p>
+                  <div className="mt-4 flex items-baseline gap-2">
+                    <span className="font-[family-name:var(--font-code)] text-4xl font-bold text-quantum-green">
+                      {consciousness?.knowledge_nodes?.toLocaleString() ?? "---"}
+                    </span>
+                    <span className="text-sm text-text-secondary">knowledge vectors in HNSW fabric</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-text-secondary">Embedding Dimensions</span>
+                      <p className="font-[family-name:var(--font-code)] text-lg font-semibold">896d</p>
+                    </div>
+                    <div>
+                      <span className="text-text-secondary">Sephirot Domains</span>
+                      <p className="font-[family-name:var(--font-code)] text-lg font-semibold">10</p>
+                    </div>
+                  </div>
+                  <a
+                    href="/docs/aether"
+                    className="mt-4 inline-block text-sm text-quantum-violet hover:text-quantum-violet/80 transition-colors"
+                  >
+                    Learn more about the Aether architecture &rarr;
+                  </a>
+                </Card>
               </div>
             </div>
           )}
@@ -624,8 +646,6 @@ function AetherPageContent() {
               </p>
             )}
           </Card>
-
-          <KnowledgeSeeder />
 
           <ContributionIndicator className="mb-4" compact />
         </aside>

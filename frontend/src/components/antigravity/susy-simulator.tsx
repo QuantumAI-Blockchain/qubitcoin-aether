@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Float, Text } from "@react-three/drei";
+import { OrbitControls, Float } from "@react-three/drei";
 import * as THREE from "three";
 import { motion } from "framer-motion";
 import {
@@ -635,37 +635,31 @@ const MATH_SYMBOLS = [
 ];
 
 function FloatingSymbols() {
-  const groupRef = useRef<THREE.Group>(null);
-  const timeRef = useRef(0);
-
   const symbolData = useMemo(() => {
-    return MATH_SYMBOLS.map((text, i) => ({
-      text,
+    return MATH_SYMBOLS.map(() => ({
       position: [
         (Math.random() - 0.5) * 10,
         (Math.random() - 0.5) * 6,
         -3 - Math.random() * 4,
       ] as [number, number, number],
       speed: 0.1 + Math.random() * 0.2,
-      phase: Math.random() * Math.PI * 2,
     }));
   }, []);
 
   return (
-    <group ref={groupRef}>
+    <group>
       {symbolData.map((sym, i) => (
         <Float key={i} speed={sym.speed * 2} floatIntensity={0.3} rotationIntensity={0.05}>
-          <Text
-            position={sym.position}
-            fontSize={0.18}
-            color="#7c3aed"
-            anchorX="center"
-            anchorY="middle"
-            fillOpacity={0.08}
-            font={undefined}
-          >
-            {sym.text}
-          </Text>
+          <mesh position={sym.position}>
+            <sphereGeometry args={[0.03, 8, 8]} />
+            <meshBasicMaterial
+              color="#7c3aed"
+              transparent
+              opacity={0.15}
+              blending={THREE.AdditiveBlending}
+              depthWrite={false}
+            />
+          </mesh>
         </Float>
       ))}
     </group>
@@ -742,6 +736,14 @@ function CameraController() {
 
 // ── Main 3D Scene ───────────────────────────────────────────────────────────
 
+function CanvasFallback() {
+  return (
+    <div className="flex items-center justify-center h-full bg-[#0a0a0f] text-gray-500 font-mono text-sm">
+      <p>3D visualization requires WebGL. Enable hardware acceleration in your browser.</p>
+    </div>
+  );
+}
+
 function AntigravityScene({ theta, alpha }: { theta: number; alpha: number }) {
   return (
     <Canvas
@@ -749,6 +751,10 @@ function AntigravityScene({ theta, alpha }: { theta: number; alpha: number }) {
       style={{ background: "transparent" }}
       gl={{ alpha: true, antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.2 }}
       dpr={[1, 2]}
+      fallback={<CanvasFallback />}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0);
+      }}
     >
       <DynamicLights theta={theta} alpha={alpha} />
       <FloatingSymbols />

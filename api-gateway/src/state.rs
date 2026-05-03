@@ -279,6 +279,32 @@ impl SubstrateRpc {
         u64::from_str_radix(num_str, 16).ok()
     }
 
+    /// Get block hash by Substrate block number.
+    pub async fn chain_get_block_hash(&self, block_number: u64) -> Option<String> {
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "chain_getBlockHash",
+            "params": [block_number],
+            "id": 1
+        });
+        let resp = self.client.post(&self.url).json(&body).send().await.ok()?;
+        let rpc: RpcResponse<String> = resp.json().await.ok()?;
+        rpc.result
+    }
+
+    /// Get full block by hash (header + extrinsics).
+    pub async fn chain_get_block(&self, hash: &str) -> Option<serde_json::Value> {
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "chain_getBlock",
+            "params": [hash],
+            "id": 1
+        });
+        let resp = self.client.post(&self.url).json(&body).send().await.ok()?;
+        let rpc: RpcResponse<serde_json::Value> = resp.json().await.ok()?;
+        rpc.result
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     // Aggregate: full chain state in one call
     // ═══════════════════════════════════════════════════════════════════

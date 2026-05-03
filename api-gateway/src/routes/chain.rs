@@ -11,10 +11,25 @@ use serde_json::{json, Value};
 use crate::state::{AppState, FORK_OFFSET};
 
 /// GET /block/{height} — Get block by height.
+///
+/// For heights <= FORK_OFFSET: reads from CockroachDB (pre-fork Python blocks).
+/// For heights > FORK_OFFSET: reads live from Substrate RPC.
 pub async fn get_block_by_height(
     State(state): State<AppState>,
     Path(height): Path<i64>,
 ) -> Json<Value> {
+    let fork_offset = FORK_OFFSET as i64;
+
+    // Post-fork blocks: read from Substrate RPC
+    if height > fork_offset {
+        let substrate_num = (height - fork_offset) as u64;
+        if let Some(block) = get_substrate_block(&state, substrate_num, height).await {
+            return Json(block);
+        }
+        return Json(json!({ "error": "Block not found" }));
+    }
+
+    // Pre-fork blocks: read from CockroachDB
     let row: Option<(
         String, i64, Option<String>, f64, Option<String>,
         Option<Vec<u8>>, i32,
@@ -37,15 +52,48 @@ pub async fn get_block_by_height(
             Json(json!({
                 "block_hash": hash,
                 "block_height": h,
+                "height": h,
                 "parent_hash": parent.unwrap_or_default(),
                 "difficulty": diff,
                 "energy": energy.unwrap_or_default(),
                 "miner_address": miner.map(|m| format!("0x{}", hex::encode(&m))),
                 "era": era,
+                "source": "cockroachdb",
             }))
         }
         None => Json(json!({ "error": "Block not found" })),
     }
+}
+
+/// Fetch a block from Substrate RPC and format for the explorer.
+async fn get_substrate_block(state: &AppState, substrate_num: u64, display_height: i64) -> Option<Value> {
+    let sub = state.substrate.as_ref()?;
+    let hash = sub.chain_get_block_hash(substrate_num).await?;
+    let block_data = sub.chain_get_block(&hash).await?;
+
+    let header = block_data.get("block")?.get("header")?;
+    let parent_hash = header.get("parentHash")?.as_str().unwrap_or_default();
+    let extrinsics = block_data.get("block")?.get("extrinsics")?.as_array();
+    let tx_count = extrinsics.map(|e| e.len()).unwrap_or(0);
+
+    Some(json!({
+        "block_hash": hash,
+        "block_height": display_height,
+        "height": display_height,
+        "substrate_number": substrate_num,
+        "parent_hash": parent_hash,
+        "state_root": header.get("stateRoot").and_then(|v| v.as_str()).unwrap_or_default(),
+        "extrinsics_root": header.get("extrinsicsRoot").and_then(|v| v.as_str()).unwrap_or_default(),
+        "tx_count": tx_count,
+        "transactions": [],
+        "era": 0,
+        "difficulty": 0.5,
+        "timestamp": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+        "source": "substrate",
+    }))
 }
 
 /// GET /block/hash/{hash} — Get block by hash.
@@ -145,10 +193,11 @@ pub async fn chain_info(State(state): State<AppState>) -> Json<Value> {
 
 /// GET /chain/tip — Latest block info.
 pub async fn chain_tip(State(state): State<AppState>) -> Json<Value> {
-    // Try Substrate first for the tip
+    // Try Substrate: get the actual substrate block number, then add fork offset
     if let Some(sub) = &state.substrate {
-        if let Some(height) = sub.current_height().await {
-            return get_block_by_height(State(state), Path(height as i64)).await;
+        if let Some(substrate_num) = sub.substrate_block_number().await {
+            let display_height = FORK_OFFSET as i64 + substrate_num as i64;
+            return get_block_by_height(State(state), Path(display_height)).await;
         }
     }
 
