@@ -14,9 +14,10 @@ services:
   cockroachdb:
     image: cockroachdb/cockroach:v25.2.12
     container_name: qbc-cockroachdb
+    # Bind to localhost only — reachable from host services (gateway, substrate)
+    # but NOT from external network. Use `docker exec` for admin SQL access.
     ports:
-      - "26257:26257"   # SQL
-      - "8080:8080"     # Admin UI
+      - "127.0.0.1:26257:26257"
     volumes:
       - cockroach-data:/cockroach/cockroach-data
     # SECURITY WARNING [FE-H2]: --insecure disables ALL authentication and
@@ -158,7 +159,7 @@ services:
       - AUTO_MINE=false
       - PYTHONUNBUFFERED=1
       - RPC_HOST=0.0.0.0
-      - QBC_CORS_ORIGINS=*
+      - QBC_CORS_ORIGINS=https://qbc.network,https://app.qbc.network,http://localhost:3000
       - DATABASE_URL=postgresql://root@cockroachdb:26257/qubitcoin?sslmode=disable
       - IPFS_API=/ip4/ipfs/tcp/5001/http
       - IPFS_GATEWAY_PORT=8080
@@ -346,21 +347,8 @@ services:
     profiles:
       - monitoring
 
-  # ── Portainer (container management UI) ─────────────────────────────
-  portainer:
-    image: portainer/portainer-ce:lts
-    container_name: qbc-portainer
-    command: -H unix:///var/run/docker.sock
-    ports:
-      - "9000:9000"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainer-data:/data
-    networks:
-      - qbc-net
-    restart: unless-stopped
-    profiles:
-      - monitoring
+  # Portainer REMOVED — Docker socket exposure = root-equivalent access.
+  # Use `docker ps`, `docker logs`, `docker exec` directly for admin tasks.
 
   # ── Loki (log aggregation) ────────────────────────────────────────────
   loki:
@@ -552,7 +540,6 @@ volumes:
   ollama-data:
   prometheus-data:
   grafana-data:
-  portainer-data:
   loki-data:
   certbot-conf:
   certbot-www:

@@ -73,7 +73,11 @@ async fn main() -> Result<()> {
 
     // Build CORS layer
     let cors = CorsLayer::new()
-        .allow_origin(Any) // TODO: restrict in production
+        .allow_origin([
+            "https://qbc.network".parse().unwrap(),
+            "https://app.qbc.network".parse().unwrap(),
+            "http://localhost:3000".parse().unwrap(),
+        ])
         .allow_methods(Any)
         .allow_headers(Any);
 

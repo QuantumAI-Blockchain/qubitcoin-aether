@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     template: "%s | Quantum Blockchain",
   },
   description:
-    "Quantum Blockchain (QBC) — a supersymmetric framework for physics-secured digital assets and on-chain AI emergence. Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Mind neural cognitive engine.",
+    "Quantum Blockchain (QBC) — a supersymmetric framework for physics-secured digital assets and on-chain AI. Proof-of-SUSY-Alignment mining, post-quantum cryptography, and Aether Mind AI knowledge system.",
   keywords: ["quantum blockchain", "qubitcoin", "qbc", "quantum", "blockchain", "AI", "aether mind", "proof of thought", "SUSY", "supersymmetric"],
   metadataBase: new URL("https://qbc.network"),
   manifest: "/manifest.json",

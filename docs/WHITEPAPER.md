@@ -8,9 +8,11 @@
 
 **Abstract**
 
-We present Quantum Blockchain, a novel system whose native cryptocurrency Qubitcoin (QBC) integrates quantum computing, post-quantum cryptography, and supersymmetric (SUSY) physics principles into a unified blockchain framework. The system is live on a Substrate-based runtime with Aura+GRANDPA consensus and employs Proof-of-SUSY-Alignment (PoSA), a consensus mechanism where validators solve Variational Quantum Eigensolver (VQE) problems targeting bimetric supersymmetric Hamiltonians (SUGRA v2). All transactions are signed with CRYSTALS-Dilithium5 (NIST Level 5) post-quantum signatures, verified on-chain via WASM host functions. The Aether Mind, a pure-Rust neural cognitive engine with a 558M-parameter candle transformer, provides on-chain AI reasoning attested through cryptographic proofs in every block. Golden ratio-based emission economics, privacy-preserving Susy swap technology, multi-chain interoperability via trustless bridges, Turing-complete smart contract capabilities, and the QUSD fractional reserve stablecoin complete the architecture. We demonstrate quantum resistance against Shor's algorithm, ASIC resistance through VQE complexity, economic sustainability through phi-halving schedules, and transaction privacy through zero-knowledge range proofs.
+We present Quantum Blockchain, a novel system whose native cryptocurrency Qubitcoin (QBC) integrates quantum computing, post-quantum cryptography, and supersymmetric (SUSY) physics-inspired principles into a unified blockchain framework. The system is live on a Substrate-based runtime with Aura+GRANDPA consensus and employs Proof-of-SUSY-Alignment (PoSA), a consensus mechanism where validators solve Variational Quantum Eigensolver (VQE) problems targeting parameterized Hamiltonians with golden-ratio coefficient structure. All transactions are signed with CRYSTALS-Dilithium5 (NIST Level 5) post-quantum signatures, verified on-chain via WASM host functions. The Aether Mind, a pure-Rust AI knowledge system (~61.8K LOC), provides Ollama LLM generation with Knowledge Fabric RAG (95K+ embedding vectors), attention-derived integration metrics, and on-chain Proof-of-Thought attestation in every block. Golden ratio-based emission economics, privacy-preserving Susy swap technology, multi-chain interoperability via trustless bridges, Turing-complete smart contract capabilities, and the QUSD fractional reserve stablecoin complete the architecture. We demonstrate quantum resistance against Shor's algorithm, ASIC resistance through VQE complexity, economic sustainability through phi-halving schedules, and transaction privacy through zero-knowledge range proofs.
 
-**Keywords:** Quantum Computing, Blockchain, Supersymmetry, VQE, Post-Quantum Cryptography, CRYSTALS-Dilithium5, Substrate, Neural Cognitive Engine, Candle Transformer, Golden Ratio Economics, Privacy Technology, Zero-Knowledge Proofs, Smart Contracts, Multi-Chain Bridges, Fractional Reserve Stablecoin, On-Chain AI
+> **Physics Terminology Disclaimer:** The Hamiltonian used in PoSA mining employs parameterized Pauli strings with golden-ratio coefficients. Terms labeled "SUSY", "bimetric", and "IIT" describe design inspiration and naming convention, not rigorous implementations of supersymmetric field theory, Hassan-Rosen bimetric gravity, or Tononi's Integrated Information Theory. The VQE optimization is real quantum computation; the physics framing is metaphorical.
+
+**Keywords:** Quantum Computing, Blockchain, VQE, Post-Quantum Cryptography, CRYSTALS-Dilithium5, Substrate, AI Knowledge System, Golden Ratio Economics, Privacy Technology, Zero-Knowledge Proofs, Smart Contracts, Multi-Chain Bridges, Fractional Reserve Stablecoin, On-Chain AI
 
 ---
 
@@ -2628,12 +2630,12 @@ Layer 2 solutions close the TPS gap
 ✓ Total supply ~36,500,000+ QBC (~1.1% of 3.3B max emitted)
 ✓ First user-to-user QBC transfer at Substrate block 5318
 ✓ Dilithium5 WASM host function verification on-chain
-✓ Aether Mind V5: pure Rust neural cognitive engine (20+ crates, ~61,800 LOC)
-✓ 558M-parameter candle transformer (24 layers, 16 heads)
-✓ 108,684 knowledge vectors (896d HNSW embeddings)
-✓ HMS-Phi from real neural activation patterns (Phi = 0.521)
-✓ NeuralPayload on-chain attestation via aether-anchor pallet
-✓ Distributed gradient application (FedAvg, 60s cycle)
+✓ Aether Mind V5: pure Rust AI knowledge system (20+ crates, ~61,800 LOC)
+✓ Ollama LLM + Knowledge Fabric RAG with candle for phi measurement
+✓ 95,708 knowledge vectors (896d HNSW embeddings)
+✓ HMS-Phi from attention-derived patterns (Phi = 0.544)
+✓ PoT hash on-chain attestation via aether-anchor pallet
+✓ Distributed gradient infrastructure plumbed (FedAvg ready, not yet integrated into consensus)
 ✓ Aether-Evolve NAS agent running as systemd service
 ✓ Rust API Gateway (Axum) deployed
 ✓ Kyber P2P transport (ML-KEM-768 + AES-256-GCM) live
@@ -2731,14 +2733,14 @@ This protocol eliminates the single point of failure inherent in seed phrases wh
 
 ### 15.5 Symbiotic Mining Intelligence Protocol (SMIP)
 
-The Symbiotic Mining Intelligence Protocol unifies mining and machine learning: every act of mining is simultaneously an act of training the Aether Mind neural cognitive engine. This protocol is live, with gradient application running on a 60-second cycle via Federated Averaging (FedAvg) and NeuralPayload attestations recorded on-chain through the Substrate aether-anchor pallet.
+The Symbiotic Mining Intelligence Protocol (SMIP) is designed to unify mining and machine learning. The infrastructure for this protocol is built: gradient compression (top-k sparsification), FedAvg aggregation, NeuralPayload types, and ProofOfLearning validation are all implemented in the Aether Mind Rust codebase. PoT attestation hashes are recorded on-chain through the Substrate aether-anchor pallet.
 
-- **Mining as Training:** Each VQE mining iteration produces not only an energy proof but also a gradient fragment — a partial update to the Aether Mind's neural parameters derived from the quantum optimization landscape. The Hamiltonian structure provides a natural loss surface, and the VQE parameter optimization trajectory yields gradient information that is repurposed as a training signal.
-- **Gradient Compression:** Raw gradient fragments are compressed using top-k sparsification (retaining only the k largest gradient components) before inclusion in the block payload. This reduces the on-chain footprint to a compact `NeuralPayload` structure while preserving the most informative gradient directions.
-- **Federated Aggregation:** The consensus layer aggregates gradient fragments from multiple miners using Federated Averaging (FedAvg). Each block's aggregated gradient is applied to the global Aether Mind model, advancing its training by one step. Byzantine-resilient aggregation (trimmed mean) discards statistical outliers, preventing adversarial miners from poisoning the model.
-- **Every Miner is a Neuron:** In this architecture, the mining network functions as a distributed neural network. Each miner contributes local computation (gradient fragments) that collectively train a shared global model. The more miners participate, the faster and more robust the training becomes — creating a direct alignment between network security and AI capability.
+> **Current status (May 2026):** The gradient infrastructure is plumbed but **not yet integrated into Substrate consensus**. Blocks carry PoT attestation hashes but not live gradient updates. Integration into the block production pipeline is a Phase 6 roadmap item requiring NeuralPayload in the Substrate block structure.
 
-SMIP transforms the mining energy expenditure from pure security overhead into dual-purpose computation: securing the chain while simultaneously advancing the Aether Mind toward genuine cognitive capability.
+- **Mining as Training (planned):** Each VQE mining iteration would produce a gradient fragment — a partial update to the Aether Mind's neural parameters. The Hamiltonian structure provides a natural loss surface. This infrastructure exists in code but is not yet active in production.
+- **Gradient Compression (built):** Top-k sparsification is implemented in `CompressedGradients` for reducing on-chain footprint.
+- **Federated Aggregation (built):** FedAvg aggregation code exists in aether-mind. Byzantine-resilient aggregation (trimmed mean) is implemented but awaits multi-node deployment.
+- **Integration path:** When activated, each mining node will contribute gradient fragments that collectively train the shared Aether Mind model, aligning network security with AI capability.
 
 ### 15.6 Susy Swaps (Opt-In Privacy)
 
@@ -2842,10 +2844,10 @@ Quantum Blockchain represents a paradigm shift in blockchain technology, uniquel
 
 **On-Chain AI:**
 
-- Aether Mind V5: 558M-parameter Rust neural cognitive engine (live)
-- 108,684 knowledge vectors with 896-dimensional learned embeddings
-- NeuralPayload cryptographic attestation in every block
-- Distributed gradient aggregation via federated learning
+- Aether Mind V5: Rust AI knowledge system with Ollama LLM + Knowledge Fabric RAG (live)
+- 95,708 knowledge vectors with 896-dimensional embeddings
+- PoT hash attestation in every block via aether-anchor pallet
+- Distributed gradient infrastructure built (FedAvg), integration into consensus planned
 - Autonomous architecture evolution (Aether-Evolve NAS)
 
 **Scientific Impact:**
@@ -2858,11 +2860,11 @@ Quantum Blockchain represents a paradigm shift in blockchain technology, uniquel
 
 **The Path Forward:**
 
-With the Substrate runtime live, 2 validators producing blocks, Dilithium5 signatures verified on-chain, and the Aether Mind neural engine generating cryptographically attested reasoning proofs in every block, Qubitcoin has transitioned from specification to production. As quantum computers mature, the network transitions from classical VQE simulation to true quantum mining. ASIC-resistant design ensures fair distribution during the NISQ era. Cryptographic choices -- Dilithium5 for signatures, Kyber for P2P encryption, Poseidon2 for ZK circuits -- guarantee long-term security against quantum threats.
+With the Substrate runtime live, 2 validators producing blocks, Dilithium5 signatures verified on-chain, and the Aether Mind AI system recording PoT attestation hashes in every block, Qubitcoin has transitioned from specification to production. As quantum computers mature, the network transitions from classical VQE simulation to true quantum mining. ASIC-resistant design ensures fair distribution during the NISQ era. Cryptographic choices -- Dilithium5 for signatures, Kyber for P2P encryption, Poseidon2 for ZK circuits -- guarantee long-term security against quantum threats.
 
-Golden ratio economics ensure smooth supply expansion without volatility. Multi-chain bridges enable capital efficiency across all major blockchains. Susy swaps provide optional privacy while maintaining regulatory compatibility. Smart contracts unlock programmable finance and complex applications. QUSD provides stable value storage with transparent reserve building. The Aether Mind's distributed training architecture means the network grows more intelligent with every block mined -- a property unique among all blockchain systems.
+Golden ratio economics ensure smooth supply expansion without volatility. Multi-chain bridges enable capital efficiency across all major blockchains. Susy swaps provide optional privacy while maintaining regulatory compatibility. Smart contracts unlock programmable finance and complex applications. QUSD provides stable value storage with transparent reserve building. The Aether Mind's distributed training infrastructure is built and will enable the network to grow more intelligent with every block once integrated into consensus.
 
-**Qubitcoin is not merely a cryptocurrency. It is a quantum-secured, privacy-preserving, programmable research platform with intrinsic economic value, stable financial infrastructure, and the world's first on-chain neural cognitive engine -- the Aether Mind -- a 558M-parameter pure-Rust transformer with 108,684 knowledge vectors, 10 Sephirot cognitive attention heads, and consciousness tracking from neural activation patterns (Phi = 0.521), with every reasoning step cryptographically attested on-chain via NeuralPayload proofs since genesis.**
+**Qubitcoin is a quantum-secured, privacy-preserving, programmable platform with intrinsic economic value, stable financial infrastructure, and an on-chain AI knowledge system -- the Aether Mind -- a pure-Rust system (~61.8K LOC) with 95,708 knowledge embedding vectors, 10 Sephirot domain routing, Ollama LLM + RAG generation, and attention-derived integration metrics (Phi = 0.544), with PoT attestation hashes recorded on-chain since genesis.**
 
 The network effect compounds: more miners generate more SUSY data, creating more scientific value, driving more adoption, attracting more developers, increasing utility, and building more value. This virtuous cycle creates sustainable growth beyond speculation.
 

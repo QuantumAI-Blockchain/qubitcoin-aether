@@ -15,8 +15,8 @@ global:
 #         - targets: ['alertmanager:9093']
 
 # ── Recording & Alert Rules ─────────────────────────────────────────────
-# rule_files:
-#   - '/etc/prometheus/rules/*.yml'
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
 
 # ── Scrape Targets ──────────────────────────────────────────────────────
 scrape_configs:

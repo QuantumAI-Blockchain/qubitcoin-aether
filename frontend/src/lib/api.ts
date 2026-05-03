@@ -7,7 +7,7 @@ const BASE_DELAY_MS = 500;
 /** API base URL with fallback if the env var / constants import is undefined at runtime. */
 const API_URL = RPC_URL || "http://localhost:5000";
 
-/** Aether Mind (Rust) base URL — neural cognitive engine on port 5003 */
+/** Aether Mind (Rust) base URL — AI knowledge system on port 5003 */
 const AETHER_URL = AETHER_ENGINE_URL || "http://localhost:5003";
 
 /** Build headers with optional JWT auth. */

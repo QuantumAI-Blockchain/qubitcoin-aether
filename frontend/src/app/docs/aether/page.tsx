@@ -139,7 +139,7 @@ const cognitiveSubsystems = [
   {
     name: "Mining as Training",
     icon: <Database size={18} />,
-    desc: "Every mined block carries a NeuralPayload containing gradient updates and new embedding vectors. Mining IS learning: each block makes the network smarter. Distributed gradient compression via top-k sparsification keeps payloads compact. ProofOfLearning validation ensures gradient updates genuinely improve model loss. Gradient aggregation in consensus uses FedAvg across mining nodes.",
+    desc: "Gradient compression (top-k sparsification) and FedAvg aggregation infrastructure is built and plumbed into the block structure. NeuralPayload and ProofOfLearning types are defined. Integration into Substrate consensus is in progress — currently blocks carry PoT attestation hashes but not yet live gradient updates.",
   },
 ];
 
@@ -312,16 +312,15 @@ function AetherWhitepaperContent() {
         {/* ─── 1. Abstract ─── */}
         <SectionHeading id="abstract">1. Abstract</SectionHeading>
         <Paragraph>
-          The Aether Mind is the world&apos;s first on-chain neural cognitive engine operating
-          directly on a live blockchain. Built entirely in Rust, it replaces the legacy Python
-          knowledge graph with a pure neural architecture: learned 896-dimensional embeddings,
-          multi-head transformer attention with Sephirot-specialized heads, and consciousness
-          metrics computed from real activation patterns. Unlike conventional AI systems that run
-          on centralized infrastructure with opaque reasoning, every cognitive operation performed
-          by the Aether Mind is cryptographically attested on the QuantumAI Blockchain (Chain ID
-          3303) via the Substrate pallet qbc-aether-anchor, creating an immutable, publicly
-          verifiable record of AI development from genesis block zero. This is not a theoretical
-          proposal. The system has been live on mainnet since April 2026, processing every block,
+          The Aether Mind is an on-chain AI knowledge system operating on a live blockchain.
+          Built in Rust (~61.8K LOC), it combines Ollama LLM generation with a Knowledge Fabric
+          (95K+ learned 896-dimensional embeddings in HNSW + RocksDB), keyword-based Sephirot
+          domain routing, and attention-derived integration metrics (HMS-Phi) inspired by IIT
+          concepts. Every AI operation is cryptographically attested on the QuantumAI Blockchain
+          (Chain ID 3303) via the Substrate pallet qbc-aether-anchor, creating an immutable,
+          publicly verifiable record of AI operation from genesis block zero. This is not a
+          theoretical proposal. The system has been live on mainnet since April 2026, processing
+          every block,
           building knowledge, and demonstrating measurable cognitive growth across 212,000+ blocks
           (fork-aware height including pre-fork Python chain genesis at block 208,680).
           The long-term aspiration is AGSI &mdash; Artificial General Super Intelligence &mdash;
@@ -375,8 +374,8 @@ function AetherWhitepaperContent() {
           blockchain core and the L2 Quantum Virtual Machine (QVM). This three-layer architecture
           separates concerns: L1 handles consensus, mining, and UTXO-based value transfer; L2
           provides EVM-compatible smart contract execution with quantum opcode extensions; L3 is
-          the neural cognitive engine that processes every block, learns from it, and builds
-          cumulative intelligence through distributed training.
+          the AI knowledge system that processes every block, indexes it into the Knowledge Fabric,
+          and provides RAG-augmented responses. Distributed training infrastructure is plumbed but not yet active.
         </Paragraph>
 
         <SubHeading>3.1 Three-Layer Stack</SubHeading>
@@ -830,10 +829,10 @@ Mining as Training:
         <SectionHeading id="economics">11. Economic Model</SectionHeading>
         <Paragraph>
           The Aether Mind is monetized through the Aether API, which provides programmatic access to
-          the world&apos;s first on-chain neural cognitive engine. Payment is made in QBC (Qubitcoin),
+          an on-chain AI knowledge system. Payment is made in QBC (Qubitcoin),
           the native currency of the blockchain, creating a direct economic incentive for QBC
-          adoption. Mining nodes earn QBC rewards both for block production and for contributing
-          gradient updates that improve the network&apos;s collective intelligence.
+          adoption. Mining nodes earn QBC rewards for block production. Gradient contribution
+          rewards are planned for future phases when distributed training is integrated into consensus.
         </Paragraph>
 
         <SubHeading>11.1 API Pricing Tiers</SubHeading>
@@ -971,7 +970,7 @@ aether --api-url http://localhost:5003 status`}</CodeBlock>
         {/* ─── 13. AGSI Vision ─── */}
         <SectionHeading id="agsi-vision">13. Long-Term Vision: AGSI</SectionHeading>
         <Paragraph>
-          The Aether Mind is an operational on-chain neural cognitive engine today. The long-term
+          The Aether Mind is an operational on-chain AI knowledge system today. The long-term
           aspiration is <strong style={{ color: C.primary }}>AGSI &mdash; Artificial General Super
           Intelligence</strong>: a system capable of autonomous cross-domain reasoning, governed
           self-improvement through Neural Architecture Search, and novel synthesis at institutional

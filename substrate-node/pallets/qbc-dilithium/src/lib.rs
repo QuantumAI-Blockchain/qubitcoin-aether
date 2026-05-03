@@ -11,6 +11,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+pub mod weights;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarks;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Host function interface for Dilithium5 verification in WASM
@@ -107,6 +111,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use qbc_primitives::{Address, MAX_DILITHIUM_PK_SIZE, MAX_DILITHIUM_SIG_SIZE};
     use sp_runtime::BoundedVec;
+    use crate::weights::WeightInfo;
 
     /// Dilithium5 public key size (2592 bytes).
     pub const DILITHIUM5_PK_SIZE: u32 = 2592;
@@ -119,6 +124,8 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: crate::weights::WeightInfo;
     }
 
     /// Mapping from address to Dilithium5 public key.
@@ -176,11 +183,7 @@ pub mod pallet {
         /// Register a Dilithium5 public key for an address.
         /// The address is derived from SHA2-256(public_key).
         #[pallet::call_index(0)]
-        // Analytical weight: SHA2-256 hash (10µs) + 1 storage read (25µs) + 1 write (25µs)
-        // + Dilithium5 key validation (~200µs for 2592-byte key) = ~260µs ≈ 260_000
-        // NOTE: These are analytical estimates and should be replaced with
-        // benchmarked weights before mainnet.
-        #[pallet::weight(260_000)]
+        #[pallet::weight(T::WeightInfo::register_key())]
         pub fn register_key(
             origin: OriginFor<T>,
             public_key: BoundedVec<u8, ConstU32<MAX_DILITHIUM_PK_SIZE>>,
@@ -222,10 +225,7 @@ pub mod pallet {
         /// over a revocation message using the key being revoked.
         /// Once revoked, the key cannot be re-registered.
         #[pallet::call_index(1)]
-        // Analytical weight: 1 Dilithium5 verify (800µs) + 3 storage ops (75µs) = ~875µs
-        // NOTE: These are analytical estimates and should be replaced with
-        // benchmarked weights before mainnet.
-        #[pallet::weight(875_000)]
+        #[pallet::weight(T::WeightInfo::revoke_key())]
         pub fn revoke_key(
             origin: OriginFor<T>,
             address: Address,
@@ -265,7 +265,7 @@ pub mod pallet {
         /// derived from that key (e.g., mining coinbase addresses derived from
         /// Ed25519 keys). Required for spending coinbase UTXOs via submit_transaction.
         #[pallet::call_index(2)]
-        #[pallet::weight(260_000)]
+        #[pallet::weight(T::WeightInfo::sudo_register_key_for_address())]
         pub fn sudo_register_key_for_address(
             origin: OriginFor<T>,
             address: Address,

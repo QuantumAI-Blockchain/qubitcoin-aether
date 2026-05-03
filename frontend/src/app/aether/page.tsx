@@ -29,6 +29,8 @@ interface Message {
   potHash?: string;
   phi?: number;
   emotionalState?: Record<string, number>;
+  knowledgeVectors?: number;
+  activeSephirot?: number;
 }
 
 let _msgCounter = 0;
@@ -244,16 +246,21 @@ function AetherPageContent() {
           setSessionId(sid);
         }
         const res: ChatResponse = await api.sendChatMessage(sid, text);
+        // Map from actual backend fields — reasoning_trace/proof_of_thought_hash
+        // may be absent since backend ChatResponse does not always include them
+        const rawPhi = res.phi_at_response ?? (res as unknown as Record<string, unknown>).phi;
         setMessages((prev) => [
           ...prev,
           {
             id: nextMsgId(),
             role: "aether",
             text: res.response,
-            reasoning: res.reasoning_trace,
-            potHash: res.proof_of_thought_hash,
-            phi: res.phi_at_response,
+            reasoning: res.reasoning_trace?.length ? res.reasoning_trace : undefined,
+            potHash: res.proof_of_thought_hash || undefined,
+            phi: typeof rawPhi === "number" ? rawPhi : undefined,
             emotionalState: res.emotional_state,
+            knowledgeVectors: (res as unknown as Record<string, unknown>).knowledge_vectors as number | undefined,
+            activeSephirot: (res as unknown as Record<string, unknown>).active_sephirot as number | undefined,
           },
         ]);
       } catch {
@@ -286,15 +293,18 @@ function AetherPageContent() {
       // Attempt to load from server
       try {
         const res = await api.getConversationMessages(session.id);
-        const serverMsgs: Message[] = (res.messages ?? []).map((m) => ({
-          id: nextMsgId(),
-          role: m.role as "user" | "aether",
-          text: m.content,
-          reasoning: m.reasoning_trace,
-          potHash: m.proof_of_thought_hash,
-          phi: m.phi_at_response,
-          emotionalState: m.emotional_state,
-        }));
+        const serverMsgs: Message[] = (res.messages ?? []).map((m) => {
+          const mPhi = m.phi_at_response ?? (m as unknown as Record<string, unknown>).phi;
+          return {
+            id: nextMsgId(),
+            role: m.role as "user" | "aether",
+            text: m.content,
+            reasoning: m.reasoning_trace?.length ? m.reasoning_trace : undefined,
+            potHash: m.proof_of_thought_hash || undefined,
+            phi: typeof mPhi === "number" ? mPhi : undefined,
+            emotionalState: m.emotional_state,
+          };
+        });
         setMessages(serverMsgs);
       } catch {
         setMessages([]);
@@ -398,8 +408,8 @@ function AetherPageContent() {
                         Aether Mind
                       </h2>
                       <p className="mt-2 max-w-md text-sm text-text-secondary">
-                        A neural cognitive engine running pure Rust. Every response is backed by
-                        consciousness metrics and a Proof-of-Thought anchored to the QBC blockchain.
+                        An AI knowledge system with Ollama LLM + Knowledge Fabric RAG. Every response is backed by
+                        attention-derived metrics and a Proof-of-Thought hash anchored to the QBC blockchain.
                       </p>
                     </div>
                   )}
@@ -443,7 +453,7 @@ function AetherPageContent() {
                             &Phi; at response: {m.phi.toFixed(4)}
                           </p>
                         )}
-                        {m.role === "aether" && m.potHash && (
+                        {m.role === "aether" && m.potHash && m.reasoning?.length && (
                           <button
                             onClick={() => setSelectedMsg(selectedMsg === i ? null : i)}
                             className="mt-2 text-xs text-quantum-green/70 hover:text-quantum-green"
@@ -451,8 +461,18 @@ function AetherPageContent() {
                             {selectedMsg === i ? "Hide trace" : "View reasoning trace"}
                           </button>
                         )}
-                        {selectedMsg === i && m.reasoning && (
+                        {selectedMsg === i && m.reasoning?.length && (
                           <ReasoningTraceView steps={m.reasoning} potHash={m.potHash} />
+                        )}
+                        {m.role === "aether" && (m.knowledgeVectors != null || m.activeSephirot != null) && (
+                          <div className="mt-1.5 flex flex-wrap gap-3 font-[family-name:var(--font-code)] text-[10px] text-text-secondary/60">
+                            {m.knowledgeVectors != null && (
+                              <span>KF vectors: {m.knowledgeVectors.toLocaleString()}</span>
+                            )}
+                            {m.activeSephirot != null && (
+                              <span>Sephirot: {m.activeSephirot}/10</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </motion.div>
@@ -594,7 +614,7 @@ function AetherPageContent() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-text-secondary">Phi Micro (IIT 3.0)</span>
+                <span className="text-text-secondary">Phi Micro (Attention Entropy)</span>
                 <span className="font-[family-name:var(--font-code)]">
                   {consciousness?.phi_micro?.toFixed(6) ?? "---"}
                 </span>

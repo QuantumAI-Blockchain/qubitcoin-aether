@@ -40,6 +40,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+pub mod weights;
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarks;
 
 /// Trait for checking if a UTXO has been frozen by an external pallet
 /// (e.g., the reversibility pallet). This provides loose coupling between
@@ -68,6 +75,7 @@ pub mod pallet {
     use sp_core::H256;
     use sp_runtime::BoundedVec;
     use crate::UtxoFreezeChecker;
+    use crate::weights::WeightInfo;
 
     /// Maximum transaction inputs.
     pub const MAX_INPUTS: u32 = 256;
@@ -89,6 +97,8 @@ pub mod pallet {
         /// Optional freeze checker for cross-pallet UTXO freezing
         /// (e.g., from the reversibility pallet).
         type FreezeChecker: crate::UtxoFreezeChecker;
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: crate::weights::WeightInfo;
     }
 
     /// UTXO set: (txid, vout) → Utxo.
@@ -277,12 +287,7 @@ pub mod pallet {
         /// 5. No duplicate inputs
         /// 6. No zero-amount outputs
         #[pallet::call_index(0)]
-        // Analytical weight: N input reads (25µs each) + N Dilithium verifications (500µs each)
-        // + M output writes (25µs each) + N input deletions (25µs each) + fee accumulation (25µs)
-        // Estimate: 4 inputs × 550µs + 4 outputs × 25µs + 25µs fee = ~2.3ms ≈ 2_325_000
-        // NOTE: These are analytical estimates and should be replaced with
-        // benchmarked weights before mainnet.
-        #[pallet::weight(2_325_000)]
+        #[pallet::weight(<T as crate::pallet::Config>::WeightInfo::submit_transaction(inputs.len() as u32, outputs.len() as u32))]
         pub fn submit_transaction(
             origin: OriginFor<T>,
             inputs: BoundedVec<TransactionInput, T::MaxInputs>,

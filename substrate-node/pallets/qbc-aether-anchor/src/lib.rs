@@ -32,6 +32,9 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        /// Provides the current set of active validators (Aura authorities).
+        /// The runtime wires this to `pallet_aura::Authorities::<Runtime>::get()`.
+        type ValidatorSet: Get<sp_std::vec::Vec<Self::AccountId>>;
     }
 
     /// Current knowledge graph Merkle root.
@@ -144,10 +147,8 @@ pub mod pallet {
     pub enum Error<T> {
         /// Phi value changed too dramatically in a single block.
         PhiDeltaTooLarge,
-        // Note: ServiceUnavailable, InvalidKnowledgeRoot, and
-        // InvalidPhiMeasurement were removed — they were never used in any
-        // extrinsic or internal function. PhiDeltaTooLarge is the only error
-        // variant actively used by record_block_state().
+        /// The caller is not an active Aura authority (validator).
+        NotValidator,
     }
 
     #[pallet::genesis_config]
@@ -208,8 +209,10 @@ pub mod pallet {
         ) -> DispatchResult {
             // Accept both root and signed origins (validators submit PoT after each block)
             if ensure_root(origin.clone()).is_err() {
-                let _who = ensure_signed(origin)?;
-                // TODO: In production, validate _who is an active validator
+                let who = ensure_signed(origin)?;
+                // Reject callers that are not active Aura authorities
+                let validators = T::ValidatorSet::get();
+                ensure!(validators.contains(&who), Error::<T>::NotValidator);
             }
 
             // Read previous Phi BEFORE updating storage (consciousness detection)

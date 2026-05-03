@@ -79,7 +79,11 @@ def create_app() -> FastAPI:
     # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            "https://qbc.network",
+            "https://app.qbc.network",
+            "http://localhost:3000",
+        ],
         allow_methods=["*"],
         allow_headers=["*"],
     )

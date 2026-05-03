@@ -153,26 +153,24 @@ jobs:
       - name: Syntax check all Python files
         run: |
           python -m py_compile src/qubitcoin/config.py
+          python -m py_compile src/qubitcoin/node.py
           python -m py_compile src/qubitcoin/consensus/engine.py
+          python -m py_compile src/qubitcoin/mining/engine.py
           python -m py_compile src/qubitcoin/qvm/vm.py
           python -m py_compile src/qubitcoin/qvm/opcodes.py
           python -m py_compile src/qubitcoin/qvm/state.py
-          python -m py_compile src/qubitcoin/aether/knowledge_graph.py
-          python -m py_compile src/qubitcoin/aether/phi_calculator.py
-          python -m py_compile src/qubitcoin/aether/reasoning.py
-          python -m py_compile src/qubitcoin/aether/sephirot.py
-          python -m py_compile src/qubitcoin/aether/csf_transport.py
-          python -m py_compile src/qubitcoin/aether/pineal.py
-          python -m py_compile src/qubitcoin/aether/memory.py
-          python -m py_compile src/qubitcoin/aether/safety.py
-          python -m py_compile src/qubitcoin/aether/knowledge_extractor.py
-          python -m py_compile src/qubitcoin/aether/task_protocol.py
-          python -m py_compile src/qubitcoin/aether/consciousness.py
-          python -m py_compile src/qubitcoin/aether/sephirot_nodes.py
+          python -m py_compile src/qubitcoin/database/manager.py
+          python -m py_compile src/qubitcoin/database/models.py
+          python -m py_compile src/qubitcoin/network/rpc.py
+          python -m py_compile src/qubitcoin/network/jsonrpc.py
           python -m py_compile src/qubitcoin/privacy/commitments.py
           python -m py_compile src/qubitcoin/privacy/range_proofs.py
           python -m py_compile src/qubitcoin/privacy/stealth.py
           python -m py_compile src/qubitcoin/privacy/susy_swap.py
+          python -m py_compile src/qubitcoin/stablecoin/engine.py
+          python -m py_compile src/qubitcoin/l2_bridge.py
+          python -m py_compile src/qubitcoin/utils/logger.py
+          python -m py_compile src/qubitcoin/utils/metrics.py
 
   # ── Frontend Build ─────────────────────────────────────────────
   frontend-build:

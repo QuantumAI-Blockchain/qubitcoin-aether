@@ -73,7 +73,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("qubitcoin"),
     impl_name: create_runtime_str!("qubitcoin-node"),
     authoring_version: 1,
-    spec_version: 106,
+    spec_version: 107,
     impl_version: 1,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 1,
@@ -208,6 +208,7 @@ impl pallet_sudo::Config for Runtime {
 
 impl pallet_qbc_dilithium::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_qbc_dilithium::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -229,6 +230,7 @@ impl pallet_qbc_utxo::Config for Runtime {
     type MaxInputs = MaxInputs;
     type MaxOutputs = MaxOutputs;
     type FreezeChecker = ReversibilityFreezeChecker;
+    type WeightInfo = pallet_qbc_utxo::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_qbc_economics::Config for Runtime {
@@ -237,14 +239,36 @@ impl pallet_qbc_economics::Config for Runtime {
 
 impl pallet_qbc_consensus::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_qbc_consensus::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_qbc_qvm_anchor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
 }
 
+/// Provides the current Aura authority set as a list of AccountId.
+/// Used by the aether-anchor pallet to restrict state submissions to validators.
+pub struct AuraValidatorSet;
+impl frame_support::traits::Get<Vec<AccountId>> for AuraValidatorSet {
+    fn get() -> Vec<AccountId> {
+        // Aura authorities are AuraId (sr25519::app::Public). AccountId is
+        // derived from the same sr25519 public keys. We extract the inner
+        // sr25519::Public, then convert to AccountId via the signer trait.
+        use sp_runtime::traits::IdentifyAccount;
+        pallet_aura::Authorities::<Runtime>::get()
+            .into_inner()
+            .into_iter()
+            .map(|aura_id| {
+                let inner: sp_core::sr25519::Public = aura_id.into();
+                sp_runtime::MultiSigner::Sr25519(inner).into_account()
+            })
+            .collect()
+    }
+}
+
 impl pallet_qbc_aether_anchor::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
+    type ValidatorSet = AuraValidatorSet;
 }
 
 parameter_types! {
@@ -415,12 +439,20 @@ impl_runtime_apis! {
         }
 
         fn submit_report_equivocation_unsigned_extrinsic(
-            _equivocation_proof: sp_consensus_grandpa::EquivocationProof<
+            equivocation_proof: sp_consensus_grandpa::EquivocationProof<
                 <Block as BlockT>::Hash,
                 NumberFor<Block>,
             >,
             _key_owner_proof: sp_consensus_grandpa::OpaqueKeyOwnershipProof,
         ) -> Option<()> {
+            log::warn!(
+                target: "runtime::grandpa",
+                "EQUIVOCATION DETECTED: set_id={}, round={} — \
+                 equivocation reporting is not yet wired to pallet-offences; \
+                 the offending validator should be investigated manually.",
+                equivocation_proof.set_id(),
+                equivocation_proof.round(),
+            );
             None
         }
 

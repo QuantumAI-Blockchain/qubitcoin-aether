@@ -18,9 +18,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+pub mod weights;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarks;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -30,6 +34,7 @@ pub mod pallet {
     use qbc_primitives::*;
     use sp_core::H256;
     use sp_runtime::BoundedVec;
+    use crate::weights::WeightInfo;
     use sp_runtime::transaction_validity::{
         InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
         ValidTransaction,
@@ -88,6 +93,8 @@ pub mod pallet {
         + pallet_timestamp::Config<Moment = u64>
     {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: crate::weights::WeightInfo;
     }
 
     /// Current difficulty (scaled by 10^6; higher = easier).
@@ -132,15 +139,18 @@ pub mod pallet {
     pub const MAX_RECENT_PROOF_HASHES: u32 = 1000;
 
     /// Recent proof hashes — prevents replay attacks by storing up to
-    /// MAX_RECENT_PROOF_HASHES recent proof hashes. This replaces the old
-    /// single-hash approach that only caught consecutive duplicates.
+    /// MAX_RECENT_PROOF_HASHES recent proof hashes. Indexed by
+    /// (block_height, proof_hash) so that pruning old heights is O(k)
+    /// via `remove_prefix` instead of iterating all entries.
     #[pallet::storage]
     #[pallet::getter(fn recent_proof_hash)]
-    pub type RecentProofHashes<T: Config> = StorageMap<
+    pub type RecentProofHashes<T: Config> = StorageDoubleMap<
         _,
         Blake2_128Concat,
-        H256,  // proof_hash
         u64,   // block_height when submitted
+        Blake2_128Concat,
+        H256,  // proof_hash
+        (),
         OptionQuery,
     >;
 
@@ -270,7 +280,7 @@ pub mod pallet {
         /// - Adjusts difficulty using chain timestamp (not user-supplied)
         /// - Stores SUSY solution
         #[pallet::call_index(0)]
-        #[pallet::weight((750_000, DispatchClass::Normal, Pays::No))]
+        #[pallet::weight((<T as crate::pallet::Config>::WeightInfo::submit_mining_proof(), DispatchClass::Normal, Pays::No))]
         pub fn submit_mining_proof(
             origin: OriginFor<T>,
             vqe_proof: VqeProof,
@@ -324,7 +334,7 @@ pub mod pallet {
             // ── Replay Prevention ────────────────────────────────────────
             let proof_hash = Self::compute_proof_hash(&vqe_proof, &miner_address, block_height);
             ensure!(
-                !RecentProofHashes::<T>::contains_key(&proof_hash),
+                !RecentProofHashes::<T>::contains_key(block_height, &proof_hash),
                 Error::<T>::DuplicateProof
             );
 
@@ -429,29 +439,23 @@ pub mod pallet {
                 SusySolutions::<T>::remove(block_height.saturating_sub(SUSY_RETENTION_WINDOW));
             }
 
-            // Store proof hash for replay prevention and prune if over limit
-            RecentProofHashes::<T>::insert(&proof_hash, block_height);
+            // Store proof hash for replay prevention and prune if over limit.
+            // The double-map is keyed by (block_height, proof_hash) so pruning
+            // an entire height is O(k) via remove_prefix instead of full iteration.
+            RecentProofHashes::<T>::insert(block_height, &proof_hash, ());
             RecentProofHashCount::<T>::mutate(|count| {
                 *count = count.saturating_add(1);
 
                 while *count > MAX_RECENT_PROOF_HASHES {
                     let oldest = ProofHashOldestBlock::<T>::get();
-                    let mut removed_any = false;
-                    let mut to_remove = sp_std::vec::Vec::new();
-                    for (hash, height) in RecentProofHashes::<T>::iter() {
-                        if height <= oldest {
-                            to_remove.push(hash);
-                        }
+                    // Remove all entries at the oldest tracked height — O(k)
+                    let result = RecentProofHashes::<T>::clear_prefix(oldest, u32::MAX, None);
+                    let removed = result.unique.saturating_add(result.loops);
+                    if removed > 0 {
+                        *count = count.saturating_sub(removed);
                     }
-                    for hash in &to_remove {
-                        RecentProofHashes::<T>::remove(hash);
-                        *count = count.saturating_sub(1);
-                        removed_any = true;
-                    }
-                    if removed_any {
-                        ProofHashOldestBlock::<T>::put(oldest.saturating_add(1));
-                    } else {
-                        ProofHashOldestBlock::<T>::put(oldest.saturating_add(1));
+                    ProofHashOldestBlock::<T>::put(oldest.saturating_add(1));
+                    if removed == 0 {
                         break;
                     }
                 }

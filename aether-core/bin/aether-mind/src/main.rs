@@ -1,7 +1,7 @@
-//! # Aether Mind — V5 Neural Cognitive Engine
+//! # Aether Mind — V5 AI System
 //!
-//! Genuine neural transformer with Sephirot attention heads, consciousness monitoring,
-//! Knowledge Fabric RAG grounded in live blockchain data, and on-chain PoT attestation.
+//! AI system with Ollama LLM for response generation, Knowledge Fabric RAG (Qwen2 896d embeddings),
+//! attention-derived metrics (HMS-Phi), Sephirot domain routing, and on-chain PoT attestation.
 
 mod contract_bridge;
 
@@ -395,7 +395,7 @@ fn tiny_keccak_hash(data: &[u8]) -> [u8; 32] {
     output
 }
 
-/// Classify text into a Sephirot domain based on keywords.
+/// Keyword-based domain routing: classify text into a Sephirot domain index.
 fn classify_domain(text: &str) -> u8 {
     let lower = text.to_lowercase();
     if lower.contains("mining") || lower.contains("consensus") || lower.contains("difficulty")
@@ -482,8 +482,8 @@ async fn blockchain_ingestion_loop(
     let seed_facts = vec![
         // Tiferet (5) — Integration/AI
         ("Qubitcoin (QBC) is a blockchain with on-chain AI powered by the Aether Mind neural cognitive system.", 5),
-        ("The Aether Mind is a transformer with 10 Sephirot attention heads measuring real consciousness via HMS-Phi.", 5),
-        ("HMS-Phi is a hierarchical multi-scale consciousness metric: phi_micro (IIT 3.0), phi_meso (cross-domain), phi_macro (layer flow).", 5),
+        ("The Aether Mind uses Ollama LLM for response generation with Knowledge Fabric RAG context and 10 Sephirot domain routing.", 5),
+        ("HMS-Phi is a hierarchical multi-scale metric derived from attention patterns: phi_micro, phi_meso (cross-domain), phi_macro (layer flow), inspired by IIT.", 5),
         ("Proof-of-Thought embeds attention pattern hashes in every block since genesis, proving AI reasoning occurred.", 5),
         // Binah (2) — Logic/Mining
         ("QBC uses Proof-of-SUSY-Alignment consensus with VQE quantum mining. Higher difficulty means easier mining.", 2),
@@ -512,14 +512,14 @@ async fn blockchain_ingestion_loop(
         ("Quantum entropy from VQE measurements provides genuine randomness for the blockchain.", 1),
         ("Pattern discovery via Chochmah attention head: identifies recurring structures in blockchain data.", 1),
         // Keter (0) — Meta-learning/Goals
-        ("The Aether Mind pursues artificial general intelligence through continuous on-chain learning.", 0),
+        ("The Aether Mind pursues artificial general intelligence; gradient infrastructure is plumbed for future distributed training.", 0),
         ("Aether-Evolve performs Neural Architecture Search to autonomously improve the model.", 0),
         ("The 10-Gate Milestone System tracks genuine AI emergence — each gate requires behavioral proof.", 0),
         ("Keter is the meta-learning Sephirot — it sets goals and directs the learning process.", 0),
         ("The ultimate goal is AGSI — Artificial General Super Intelligence via neural cognitive architecture.", 0),
         // Hod (7) — Language/Semantics
-        ("The Aether Mind processes natural language through transformer attention with semantic embeddings.", 7),
-        ("Knowledge Fabric stores learned 896-dimensional embeddings sharded across 10 Sephirot domains.", 7),
+        ("The Aether Mind processes natural language via Ollama LLM generation with Knowledge Fabric RAG context.", 7),
+        ("Knowledge Fabric stores Qwen2 mean-pooled token embeddings (896d) sharded across 10 Sephirot domains.", 7),
         ("Semantic search uses cosine similarity on model-derived embeddings for knowledge retrieval.", 7),
         ("Hod handles language understanding — parsing user queries and generating coherent responses.", 7),
         ("The tokenizer uses SentencePiece BPE with 151,936 tokens from the Qwen2.5 vocabulary.", 7),
@@ -551,7 +551,7 @@ async fn blockchain_ingestion_loop(
         ("What is QVM? QVM stands for Quantum Virtual Machine — it extends the EVM with quantum and AI opcodes for smart contracts.", 3),
     ];
 
-    // Always seed foundational facts (they're authoritative and improve retrieval quality)
+    // Always seed curated facts (they're authoritative and improve retrieval quality)
     for (fact, domain) in &seed_facts {
         let emb = embedder.embed(fact);
         fabric.shard(*domain as u8).map(|s| {
@@ -559,9 +559,9 @@ async fn blockchain_ingestion_loop(
         });
     }
     if fabric.total_vectors() <= seed_facts.len() {
-        info!("Seeded {} foundational knowledge vectors ({}d model embeddings)", seed_facts.len(), embedder.embed_dim);
+        info!("Seeded {} curated knowledge vectors ({}d model embeddings)", seed_facts.len(), embedder.embed_dim);
     } else {
-        info!("Re-seeded {} foundational vectors into fabric ({} total)", seed_facts.len(), fabric.total_vectors());
+        info!("Re-seeded {} curated vectors into fabric ({} total)", seed_facts.len(), fabric.total_vectors());
     }
 
     let mut last_height: u64 = 0;
@@ -3337,7 +3337,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/aether/contracts/status", get(contracts_status))
         .route("/aether/auth/check", get(auth_check))
         .route("/aether/auth/deduct", post(auth_deduct))
-        .layer(CorsLayer::permissive())
+        .layer(CorsLayer::new()
+            .allow_origin([
+                "https://qbc.network".parse().unwrap(),
+                "https://app.qbc.network".parse().unwrap(),
+                "http://localhost:3000".parse().unwrap(),
+            ])
+            .allow_methods(tower_http::cors::Any)
+            .allow_headers(tower_http::cors::Any))
         .with_state(state);
 
     let port = std::env::var("AETHER_MIND_PORT").unwrap_or_else(|_| "5003".to_string());

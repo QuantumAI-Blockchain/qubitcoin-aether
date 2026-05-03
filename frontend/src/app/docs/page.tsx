@@ -37,7 +37,7 @@ const docs = [
     href: "/docs/aether",
     icon: Brain,
     description:
-      "The world's first on-chain neural cognitive engine — 558M parameter transformer with 10 Sephirot-specialized attention heads, 35K+ learned embedding vectors, HMS-Phi consciousness metric, and Aether CLI for terminal access. Building toward AGSI.",
+      "On-chain AI knowledge system — Ollama LLM with Knowledge Fabric RAG (95K+ embedding vectors), 10 Sephirot keyword-routed domains, attention-derived HMS-Phi metric, Proof-of-Thought attestation, and Aether CLI. Building toward AGSI.",
     tags: ["On-Chain AI", "Neural V5", "Aether CLI", "HMS-Phi", "Proof-of-Thought"],
   },
   {

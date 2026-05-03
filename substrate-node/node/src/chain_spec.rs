@@ -100,6 +100,9 @@ fn chain_properties(chain_id: u64) -> sc_service::Properties {
 /// we return a minimal placeholder. The node runs in native-only execution
 /// mode — acceptable for controlled validator sets and dev/test launches.
 /// Runtime upgrades via WASM will not work until a full WASM build is available.
+///
+/// When built without SKIP_WASM_BUILD, the real WASM runtime (~431 KB compressed)
+/// is embedded and used for genesis state. This enables forkless runtime upgrades.
 fn wasm_binary() -> Result<&'static [u8], String> {
     // Minimal valid WASM module: (module) — just the magic bytes + version + empty section
     // This satisfies the genesis config requirement without a real runtime WASM.
@@ -108,7 +111,23 @@ fn wasm_binary() -> Result<&'static [u8], String> {
         0x01, 0x00, 0x00, 0x00, // WASM version: 1
     ];
 
-    Ok(WASM_BINARY.unwrap_or(MINIMAL_WASM))
+    match WASM_BINARY {
+        Some(wasm) => {
+            log::info!(
+                "Using compiled WASM runtime ({} bytes) for genesis",
+                wasm.len()
+            );
+            Ok(wasm)
+        }
+        None => {
+            log::warn!(
+                "WASM_BINARY is None (built with SKIP_WASM_BUILD=1). \
+                 Using 8-byte MINIMAL_WASM stub. Forkless runtime upgrades \
+                 will NOT work. Rebuild without SKIP_WASM_BUILD for production."
+            );
+            Ok(MINIMAL_WASM)
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -164,11 +183,14 @@ pub fn mainnet_config() -> Result<ChainSpec, String> {
             endowed_accounts,
             treasury_address,
         ))
-        // Boot nodes will be added before public launch:
-        // .with_boot_nodes(vec![
-        //     "/dns/boot1.qbc.network/tcp/30333/p2p/<peer_id>".parse().unwrap(),
-        //     "/dns/boot2.qbc.network/tcp/30333/p2p/<peer_id>".parse().unwrap(),
-        // ])
+        .with_boot_nodes(vec![
+            "/dns/qbc.network/tcp/30333/p2p/12D3KooWQoMjLep2so1Jkv6aGEjg25bd9iSCaXmXz4F5TRgMyrNT"
+                .parse()
+                .expect("valid bootnode multiaddr"),
+            "/ip4/152.42.215.182/tcp/30333/p2p/12D3KooWQoMjLep2so1Jkv6aGEjg25bd9iSCaXmXz4F5TRgMyrNT"
+                .parse()
+                .expect("valid bootnode multiaddr"),
+        ])
         .build())
 }
 
@@ -330,6 +352,16 @@ pub fn mainnet_fork_config() -> Result<ChainSpec, String> {
             difficulty_scaled,
             total_emitted,
         ))
+        .with_boot_nodes(vec![
+            // Primary validator (DigitalOcean droplet)
+            "/dns/qbc.network/tcp/30333/p2p/12D3KooWQoMjLep2so1Jkv6aGEjg25bd9iSCaXmXz4F5TRgMyrNT"
+                .parse()
+                .expect("valid bootnode multiaddr"),
+            // Direct IP fallback
+            "/ip4/152.42.215.182/tcp/30333/p2p/12D3KooWQoMjLep2so1Jkv6aGEjg25bd9iSCaXmXz4F5TRgMyrNT"
+                .parse()
+                .expect("valid bootnode multiaddr"),
+        ])
         .build())
 }
 

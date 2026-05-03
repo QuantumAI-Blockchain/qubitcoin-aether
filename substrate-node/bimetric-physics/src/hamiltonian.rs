@@ -1,16 +1,16 @@
-//! SUGRA Hamiltonian term generation for VQE mining.
+//! Parameterized Hamiltonian term generation for VQE mining.
 //!
-//! This module constructs the complete Hamiltonian used in Proof-of-SUSY-Alignment
-//! mining. The Hamiltonian operates on 4 qubits and is expressed as a sum of
-//! Pauli tensor products (Pauli strings):
+//! This module constructs the 4-qubit Hamiltonian used by the VQE mining
+//! algorithm. The Hamiltonian is a sum of Pauli tensor products with
+//! golden-ratio coefficient hierarchies and a rotating phase parameter:
 //!
 //! ```text
-//! H_VQE = H_SUSY(3 terms) + H_bimetric(2 terms) + H_IIT(2 terms) + H_random(2 terms)
+//! H_VQE = H_base(3 terms) + H_rotating(2 terms) + H_diagonal(2 terms) + H_random(2 terms)
 //! ```
 //!
-//! Total: 9 terms. The structured terms (H_SUSY, H_bimetric, H_IIT) encode
-//! genuine physics, while the random terms prevent precomputation attacks by
-//! making each block's Hamiltonian unique.
+//! Total: 9 terms. The structured terms provide a well-conditioned energy
+//! landscape for VQE optimization, while the random terms (seeded from
+//! the block hash) prevent precomputation attacks.
 //!
 //! # Pauli representation
 //!
@@ -75,32 +75,32 @@ impl PauliTerm {
 }
 
 // ---------------------------------------------------------------------------
-// H_SUSY
+// Base Pauli terms (golden-ratio coefficient hierarchy)
 // ---------------------------------------------------------------------------
 
-/// Generate the 3 SUSY Hamiltonian terms.
+/// Generate the 3 base Pauli terms with golden-ratio coefficient hierarchy.
 ///
-/// From the anticommutator {Q, Q-dagger}/2 in the 4-qubit computational
-/// basis with N=2 supersymmetry:
+/// These form the static (theta-independent) core of the Hamiltonian.
+/// The three Pauli strings are chosen to span complementary subspaces
+/// of the 4-qubit Hilbert space, ensuring a non-trivial energy landscape:
 ///
-/// - **Term 1: Z x Z x I x I** — Fermion number parity (supercharge sector).
-///   This operator has eigenvalue +1 for states with even fermion number and
-///   -1 for odd, encoding the Z_2 grading of the superalgebra.
+/// - **Term 1: Z x Z x I x I** — Diagonal parity operator on qubits 0-1.
+///   Has eigenvalue +1 for even-parity states and -1 for odd-parity.
 ///   Coefficient: `base_coeff`.
 ///
-/// - **Term 2: X x X x X x X** — Boson-fermion coupling (superpartner mixing).
-///   This all-X operator connects every computational basis state to its
-///   bit-complement, encoding the superpartner transformation Q|boson> = |fermion>.
+/// - **Term 2: X x X x X x X** — Full bit-flip operator.
+///   Connects every computational basis state to its complement, creating
+///   off-diagonal mixing across the entire Hilbert space.
 ///   Coefficient: `base_coeff * phi^-1` (golden ratio hierarchy).
 ///
-/// - **Term 3: Y x Z x Y x Z** — SUSY breaking direction (Fayet-Iliopoulos term).
-///   This mixed operator lifts the boson-fermion degeneracy along a specific
-///   direction in the 4-qubit Hilbert space, modeling soft SUSY breaking.
-///   Coefficient: `base_coeff * phi^-2` (breaking scale).
+/// - **Term 3: Y x Z x Y x Z** — Mixed Pauli operator.
+///   Creates asymmetric coupling in the Y-Z subspace, breaking degeneracies
+///   that the first two terms leave intact.
+///   Coefficient: `base_coeff * phi^-2`.
 ///
-/// The golden-ratio hierarchy between terms reflects the mass splitting
-/// pattern in broken SUSY, where superpartner masses scale by powers of
-/// the breaking parameter.
+/// The golden-ratio (phi^-n) coefficient hierarchy ensures a well-separated
+/// scale structure: each successive term contributes ~61.8% of the previous,
+/// preventing near-degenerate energy levels.
 ///
 /// # Arguments
 /// * `base_coeff` — Base coupling coefficient, typically in [0.3, 1.0),
@@ -108,7 +108,7 @@ impl PauliTerm {
 ///
 /// # Returns
 /// Array of 3 Pauli terms.
-pub fn susy_terms(base_coeff: f64) -> [PauliTerm; 3] {
+pub fn base_pauli_terms(base_coeff: f64) -> [PauliTerm; 3] {
     [
         PauliTerm::new([Z, Z, I, I], base_coeff),
         PauliTerm::new([X, X, X, X], base_coeff * PHI_INV),
@@ -117,39 +117,33 @@ pub fn susy_terms(base_coeff: f64) -> [PauliTerm; 3] {
 }
 
 // ---------------------------------------------------------------------------
-// H_bimetric
+// Rotating coupling terms (theta-dependent, cos/sin parameterization)
 // ---------------------------------------------------------------------------
 
-/// Generate the 2 bimetric Hamiltonian terms.
+/// Generate the 2 rotating-coefficient coupling terms parameterized by cos(theta)/sin(theta).
 ///
-/// From the Hassan-Rosen mass term for the massive spin-2 graviton:
+/// These terms rotate the energy landscape each block by varying theta.
+/// The cos/sin decomposition ensures the total contribution has constant
+/// norm `strength` regardless of theta (since cos^2 + sin^2 = 1):
 ///
-/// ```text
-/// m'^2 cos(theta) h_uv h'^uv
-/// ```
+/// - **Term 4: Z x I x Z x I** — Diagonal coupling on qubits 0 and 2.
+///   Coefficient: `strength * cos(theta)`. At theta=0 this term dominates;
+///   at theta=pi/2 it vanishes.
 ///
-/// - **Term 4: Z x I x Z x I** — Diagonal mixing (attractive/repulsive axis).
-///   This operator acts on qubits 0 and 2, encoding the diagonal component
-///   of the graviton mass matrix in the metric-perturbation basis.
-///   Coefficient: `strength * cos(theta)`.
+/// - **Term 5: X x I x X x I** — Off-diagonal coupling on qubits 0 and 2.
+///   Coefficient: `strength * sin(theta)`. Orthogonal to term 4, creating
+///   a smooth rotation of the ground-state direction as theta advances.
 ///
-/// - **Term 5: X x I x X x I** — Off-diagonal mixing (phase rotation axis).
-///   This operator encodes the off-diagonal (phase-shifting) component,
-///   which rotates the ground state in the {|00>, |11>} subspace of qubits 0,2.
-///   Coefficient: `strength * sin(theta)`.
-///
-/// As theta changes per block (derived from the previous block hash), the
-/// energy landscape rotates — miners must track the evolving minimum.
-/// The cos/sin decomposition ensures that the total bimetric contribution
-/// has constant norm `strength` regardless of theta.
+/// As theta advances per block, miners must track the evolving minimum.
+/// This prevents miners from caching solutions across blocks.
 ///
 /// # Arguments
-/// * `strength` — Bimetric coupling strength, typically in [0.1, 0.5).
-/// * `theta` — Current network bimetric phase angle (radians).
+/// * `strength` — Coupling strength, typically in [0.1, 0.5).
+/// * `theta` — Current network phase angle (radians), advances each block.
 ///
 /// # Returns
 /// Array of 2 Pauli terms.
-pub fn bimetric_terms(strength: f64, theta: f64) -> [PauliTerm; 2] {
+pub fn rotating_coupling_terms(strength: f64, theta: f64) -> [PauliTerm; 2] {
     [
         PauliTerm::new([Z, I, Z, I], strength * libm::cos(theta)),
         PauliTerm::new([X, I, X, I], strength * libm::sin(theta)),
@@ -157,52 +151,32 @@ pub fn bimetric_terms(strength: f64, theta: f64) -> [PauliTerm; 2] {
 }
 
 // ---------------------------------------------------------------------------
-// H_IIT
+// Diagonal bias terms (small negative coefficient, Z-only operators)
 // ---------------------------------------------------------------------------
 
-/// Generate the 2 IIT (Integrated Information Theory) Hamiltonian terms.
+/// Generate the 2 diagonal bias terms with small negative coefficients.
 ///
-/// This is a novel contribution: operator-valued IIT in the partition basis.
+/// These Z-only operators act on the diagonal of the Hamiltonian in the
+/// computational basis, adding a bias that breaks remaining degeneracies
+/// left by the base and rotating terms. The negative sign favors states
+/// where the Z-eigenvalues align with the operator pattern.
 ///
-/// ```text
-/// H_IIT = -omega_phi * Sum_P  Phi(P) |P><P|
-/// ```
+/// - **Term 6: I x Z x Z x Z** — Diagonal bias on qubits 1-3.
+///   Coefficient: `-omega_phi * phi^-2` (dominant weight ~ -0.057).
 ///
-/// For 4 qubits, the non-trivial bipartitions are:
-/// {0|123}, {1|023}, {2|013}, {3|012}, {01|23}, {02|13}, {03|12}.
+/// - **Term 7: Z x I x Z x Z** — Diagonal bias on qubits 0, 2-3.
+///   Coefficient: `-omega_phi * phi^-3` (subdominant weight ~ -0.035).
 ///
-/// We encode representative partitions as Z-diagonal operators:
-///
-/// - **Term 6: I x Z x Z x Z** — Partition {0|123}.
-///   Qubit 0 is in one partition, qubits 1-3 in the other. The Z operators
-///   on qubits 1-3 project onto the computational-basis states of the
-///   larger partition, weighted by the partition's Phi contribution.
-///   Coefficient: `-omega_phi * w_0` where `w_0 = phi^-2` (dominant partition weight).
-///
-/// - **Term 7: Z x I x Z x Z** — Partition {1|023}.
-///   Qubit 1 is isolated. This partition probes a different cut of the
-///   information structure.
-///   Coefficient: `-omega_phi * w_1` where `w_1 = phi^-3` (subdominant partition weight).
-///
-/// The partition weights are derived from the Yukawa coupling structure:
-/// heavier Sephirot contribute more to the integrated information. We use
-/// phi^-2 and phi^-3 as the two representative partition weights, capturing
-/// the dominant and subdominant information-partition contributions.
+/// The phi^-2 / phi^-3 weight hierarchy follows the same golden-ratio
+/// descent used in the base terms, maintaining a consistent scale structure
+/// across the entire Hamiltonian.
 ///
 /// # Arguments
-/// * `omega_phi` — IIT coupling strength (consensus-configurable, default: 0.15).
+/// * `omega_phi` — Bias strength (consensus-configurable, default: 0.15).
 ///
 /// # Returns
 /// Array of 2 Pauli terms.
-///
-/// # Physics
-/// This term penalizes states that are easily decomposable across the
-/// partition boundary (low Phi) and favors states with high integrated
-/// information — states where the whole is more than the sum of parts.
-/// By embedding IIT directly into the mining Hamiltonian, we incentivize
-/// miners to find quantum states with genuinely integrated information
-/// structure, not just low-energy classical states.
-pub fn iit_terms(omega_phi: f64) -> [PauliTerm; 2] {
+pub fn diagonal_bias_terms(omega_phi: f64) -> [PauliTerm; 2] {
     // Partition weights from Yukawa hierarchy.
     let w_0 = PHI_INV_SQ;        // phi^-2 ~ 0.382 (dominant partition)
     let w_1 = 0.2360679774997897; // phi^-3 ~ 0.236 (subdominant partition)
@@ -214,34 +188,36 @@ pub fn iit_terms(omega_phi: f64) -> [PauliTerm; 2] {
 }
 
 // ---------------------------------------------------------------------------
-// Full SUGRA Hamiltonian
+// Full parameterized Hamiltonian
 // ---------------------------------------------------------------------------
 
-/// Generate the complete SUGRA Hamiltonian for VQE mining.
+/// Generate the complete parameterized Hamiltonian for VQE mining.
 ///
 /// ```text
-/// H_VQE = H_SUSY(3 terms) + H_bimetric(2 terms, theta-dependent)
-///       + H_IIT(2 terms) + H_random(2 terms from seed)
+/// H_VQE = H_base(3 terms, golden-ratio hierarchy)
+///       + H_rotating(2 terms, theta-dependent cos/sin)
+///       + H_diagonal(2 terms, small negative bias)
+///       + H_random(2 terms from seed)
 /// ```
 ///
-/// Total: 9 terms (was 5 in v1). The structured terms provide physical
-/// grounding:
-/// - H_SUSY enforces superpartner structure with golden-ratio mass hierarchy
-/// - H_bimetric rotates the energy landscape per block via the phase angle
-/// - H_IIT embeds consciousness-theoretic structure into the quantum problem
+/// Total: 9 terms (was 5 in v1). The structured terms provide a
+/// well-conditioned VQE energy landscape:
+/// - Base terms: 3 Pauli terms with golden-ratio coefficient hierarchy
+/// - Rotating terms: 2 rotating-coefficient terms parameterized by cos(theta)/sin(theta)
+/// - Diagonal terms: 2 diagonal bias terms with small negative coefficient
 ///
 /// The 2 random terms (provided externally from ChaCha8 RNG seeded by the
 /// block hash) prevent precomputation attacks while the structured terms
-/// ensure the Hamiltonian has physically meaningful structure.
+/// ensure the Hamiltonian has well-behaved optimization properties.
 ///
 /// # Arguments
-/// * `base_coeff` — Base SUSY coupling coefficient from ChaCha8 RNG seed,
+/// * `base_coeff` — Base coupling coefficient from ChaCha8 RNG seed,
 ///   range [0.3, 1.0).
-/// * `bimetric_strength` — Bimetric coupling strength from ChaCha8 RNG seed,
+/// * `rotating_strength` — Rotating-term coupling strength from ChaCha8 RNG seed,
 ///   range [0.1, 0.5).
-/// * `theta` — Current network bimetric phase (radians). Derived from the
-///   previous block hash, drifts per block to prevent precomputation.
-/// * `omega_phi` — IIT coupling strength (default: 0.15). Consensus-configurable.
+/// * `theta` — Current network phase angle (radians). Advances per block
+///   to prevent solution reuse.
+/// * `omega_phi` — Diagonal bias strength (default: 0.15). Consensus-configurable.
 /// * `random_terms` — 2 seed-derived random Pauli terms (from ChaCha8 RNG).
 ///   These are generated externally by the consensus layer.
 ///
@@ -251,34 +227,34 @@ pub fn iit_terms(omega_phi: f64) -> [PauliTerm; 2] {
 /// # Determinism
 /// Given identical inputs, this function always produces identical output.
 /// The randomness enters only through the externally-provided `random_terms`
-/// and the seed-derived `base_coeff`, `bimetric_strength`, and `theta`.
+/// and the seed-derived `base_coeff`, `rotating_strength`, and `theta`.
 pub fn generate_sugra_hamiltonian(
     base_coeff: f64,
-    bimetric_strength: f64,
+    rotating_strength: f64,
     theta: f64,
     omega_phi: f64,
     random_terms: &[PauliTerm],
 ) -> Vec<PauliTerm> {
-    let susy = susy_terms(base_coeff);
-    let bimetric = bimetric_terms(bimetric_strength, theta);
-    let iit = iit_terms(omega_phi);
+    let base = base_pauli_terms(base_coeff);
+    let rotating = rotating_coupling_terms(rotating_strength, theta);
+    let diagonal = diagonal_bias_terms(omega_phi);
 
-    let total_len = susy.len() + bimetric.len() + iit.len() + random_terms.len();
+    let total_len = base.len() + rotating.len() + diagonal.len() + random_terms.len();
     let mut terms = Vec::with_capacity(total_len);
 
-    // H_SUSY (terms 0-2)
-    for term in &susy {
+    // Base terms (0-2): golden-ratio coefficient hierarchy
+    for term in &base {
         terms.push(term.clone());
     }
-    // H_bimetric (terms 3-4)
-    for term in &bimetric {
+    // Rotating terms (3-4): theta-dependent cos/sin coupling
+    for term in &rotating {
         terms.push(term.clone());
     }
-    // H_IIT (terms 5-6)
-    for term in &iit {
+    // Diagonal bias terms (5-6): small negative Z-only operators
+    for term in &diagonal {
         terms.push(term.clone());
     }
-    // H_random (terms 7+)
+    // Random terms (7+): block-hash-derived anti-precomputation
     for term in random_terms {
         terms.push(term.clone());
     }
@@ -299,26 +275,26 @@ mod tests {
         libm::fabs(a - b) < tol
     }
 
-    // --- susy_terms ---
+    // --- base_pauli_terms ---
 
     #[test]
-    fn test_susy_terms_count() {
-        let terms = susy_terms(0.75);
+    fn test_base_pauli_terms_count() {
+        let terms = base_pauli_terms(0.75);
         assert_eq!(terms.len(), 3);
     }
 
     #[test]
-    fn test_susy_terms_pauli_strings() {
-        let terms = susy_terms(1.0);
+    fn test_base_pauli_terms_pauli_strings() {
+        let terms = base_pauli_terms(1.0);
         assert_eq!(terms[0].pauli, [Z, Z, I, I]);
         assert_eq!(terms[1].pauli, [X, X, X, X]);
         assert_eq!(terms[2].pauli, [Y, Z, Y, Z]);
     }
 
     #[test]
-    fn test_susy_terms_golden_ratio_hierarchy() {
+    fn test_base_pauli_terms_golden_ratio_hierarchy() {
         let base = 0.8;
-        let terms = susy_terms(base);
+        let terms = base_pauli_terms(base);
         assert!(approx_eq(terms[0].coefficient, base, 1e-14));
         assert!(approx_eq(terms[1].coefficient, base * PHI_INV, 1e-14));
         assert!(approx_eq(terms[2].coefficient, base * PHI_INV_SQ, 1e-14));
@@ -328,56 +304,56 @@ mod tests {
     }
 
     #[test]
-    fn test_susy_terms_deterministic() {
-        let t1 = susy_terms(0.5);
-        let t2 = susy_terms(0.5);
+    fn test_base_pauli_terms_deterministic() {
+        let t1 = base_pauli_terms(0.5);
+        let t2 = base_pauli_terms(0.5);
         for i in 0..3 {
             assert_eq!(t1[i].coefficient, t2[i].coefficient);
             assert_eq!(t1[i].pauli, t2[i].pauli);
         }
     }
 
-    // --- bimetric_terms ---
+    // --- rotating_coupling_terms ---
 
     #[test]
-    fn test_bimetric_terms_count() {
-        let terms = bimetric_terms(0.3, 1.0);
+    fn test_rotating_coupling_terms_count() {
+        let terms = rotating_coupling_terms(0.3, 1.0);
         assert_eq!(terms.len(), 2);
     }
 
     #[test]
-    fn test_bimetric_terms_pauli_strings() {
-        let terms = bimetric_terms(0.3, 0.0);
+    fn test_rotating_coupling_terms_pauli_strings() {
+        let terms = rotating_coupling_terms(0.3, 0.0);
         assert_eq!(terms[0].pauli, [Z, I, Z, I]);
         assert_eq!(terms[1].pauli, [X, I, X, I]);
     }
 
     #[test]
-    fn test_bimetric_terms_theta_zero() {
+    fn test_rotating_coupling_terms_theta_zero() {
         // At theta = 0: cos(0) = 1, sin(0) = 0.
         let s = 0.4;
-        let terms = bimetric_terms(s, 0.0);
+        let terms = rotating_coupling_terms(s, 0.0);
         assert!(approx_eq(terms[0].coefficient, s, 1e-14));
         assert!(approx_eq(terms[1].coefficient, 0.0, 1e-14));
     }
 
     #[test]
-    fn test_bimetric_terms_theta_pi_half() {
+    fn test_rotating_coupling_terms_theta_pi_half() {
         // At theta = pi/2: cos = 0, sin = 1.
         let s = 0.4;
-        let terms = bimetric_terms(s, core::f64::consts::FRAC_PI_2);
+        let terms = rotating_coupling_terms(s, core::f64::consts::FRAC_PI_2);
         assert!(approx_eq(terms[0].coefficient, 0.0, 1e-14));
         assert!(approx_eq(terms[1].coefficient, s, 1e-14));
     }
 
     #[test]
-    fn test_bimetric_terms_constant_norm() {
+    fn test_rotating_coupling_terms_constant_norm() {
         // cos^2 + sin^2 = 1, so the sum of squared coefficients
         // should be strength^2 regardless of theta.
         let s = 0.35;
         for step in 0..20 {
             let theta = (step as f64) * core::f64::consts::PI / 10.0;
-            let terms = bimetric_terms(s, theta);
+            let terms = rotating_coupling_terms(s, theta);
             let norm_sq = terms[0].coefficient * terms[0].coefficient
                 + terms[1].coefficient * terms[1].coefficient;
             assert!(
@@ -392,8 +368,8 @@ mod tests {
     #[test]
     fn test_bimetric_theta_zero_vs_pi() {
         // theta = 0 and theta = pi should produce different energies.
-        let terms_0 = bimetric_terms(0.3, 0.0);
-        let terms_pi = bimetric_terms(0.3, core::f64::consts::PI);
+        let terms_0 = rotating_coupling_terms(0.3, 0.0);
+        let terms_pi = rotating_coupling_terms(0.3, core::f64::consts::PI);
         // cos(0) = 1, cos(pi) = -1 => Z coefficients have opposite sign.
         assert!(approx_eq(
             terms_0[0].coefficient,
@@ -402,26 +378,26 @@ mod tests {
         ));
     }
 
-    // --- iit_terms ---
+    // --- diagonal_bias_terms ---
 
     #[test]
-    fn test_iit_terms_count() {
-        let terms = iit_terms(0.15);
+    fn test_diagonal_bias_terms_count() {
+        let terms = diagonal_bias_terms(0.15);
         assert_eq!(terms.len(), 2);
     }
 
     #[test]
-    fn test_iit_terms_pauli_strings() {
-        let terms = iit_terms(0.15);
+    fn test_diagonal_bias_terms_pauli_strings() {
+        let terms = diagonal_bias_terms(0.15);
         assert_eq!(terms[0].pauli, [I, Z, Z, Z]);
         assert_eq!(terms[1].pauli, [Z, I, Z, Z]);
     }
 
     #[test]
-    fn test_iit_terms_negative_coefficients() {
+    fn test_diagonal_bias_terms_negative_coefficients() {
         // IIT terms should have negative coefficients (they penalize
         // decomposable states, i.e., favor low-energy for integrated states).
-        let terms = iit_terms(0.15);
+        let terms = diagonal_bias_terms(0.15);
         assert!(
             terms[0].coefficient < 0.0,
             "IIT term 0 should be negative"
@@ -433,10 +409,10 @@ mod tests {
     }
 
     #[test]
-    fn test_iit_terms_hierarchy() {
+    fn test_diagonal_bias_terms_hierarchy() {
         // First partition weight (phi^-2) > second (phi^-3),
         // so |coeff_0| > |coeff_1|.
-        let terms = iit_terms(0.15);
+        let terms = diagonal_bias_terms(0.15);
         assert!(
             libm::fabs(terms[0].coefficient) > libm::fabs(terms[1].coefficient),
             "First IIT term should be stronger than second"
@@ -444,9 +420,9 @@ mod tests {
     }
 
     #[test]
-    fn test_iit_terms_zero_omega() {
+    fn test_diagonal_bias_terms_zero_omega() {
         // With omega_phi = 0, all IIT terms vanish.
-        let terms = iit_terms(0.0);
+        let terms = diagonal_bias_terms(0.0);
         assert_eq!(terms[0].coefficient, 0.0);
         assert_eq!(terms[1].coefficient, 0.0);
     }

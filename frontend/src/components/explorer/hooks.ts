@@ -850,7 +850,7 @@ export function useConsciousnessEvents(_limit: number = 20) {
     queryFn: async () => {
       if (USE_MOCK) {
         return [
-          { id: 1, type: "genesis", phi: 0, blockHeight: 0, timestamp: Date.now() / 1000 - 50000, description: "System genesis — consciousness tracking initialized" },
+          { id: 1, type: "genesis", phi: 0, blockHeight: 0, timestamp: Date.now() / 1000 - 50000, description: "System genesis — attention metric tracking initialized" },
           { id: 2, type: "phi_milestone", phi: 0.5, blockHeight: 300, timestamp: Date.now() / 1000 - 40000, description: "Phi crossed 0.5 — basic integration detected" },
           { id: 3, type: "phi_milestone", phi: 1.0, blockHeight: 800, timestamp: Date.now() / 1000 - 25000, description: "Phi crossed 1.0 — significant information integration" },
         ];

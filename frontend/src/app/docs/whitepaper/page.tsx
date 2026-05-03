@@ -30,7 +30,7 @@ const quantumOpcodes = [
   { opcode: "QRISK_SYSTEMIC", hex: "0xF7", gas: "10,000", desc: "Query systemic risk via contagion model across connected accounts" },
   { opcode: "QBRIDGE_ENTANGLE", hex: "0xF8", gas: "20,000", desc: "Cross-chain quantum entanglement for bridge state synchronization" },
   { opcode: "QBRIDGE_VERIFY", hex: "0xF9", gas: "15,000", desc: "Verify cross-chain bridge proof against remote chain state root" },
-  { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "Invoke Aether Mind neural cognitive engine from within smart contract" },
+  { opcode: "QREASON", hex: "0xFA", gas: "25,000", desc: "Invoke Aether Mind AI knowledge system from within smart contract" },
   { opcode: "QPHI", hex: "0xFB", gas: "10,000", desc: "Query current integrated information (Phi) integration metric" },
 ];
 
@@ -443,7 +443,7 @@ export default function WhitepaperPage() {
               is Qubitcoin (QBC), denominated with 8 decimal places of precision (1 QBC = 10^8 base units). The protocol
               integrates post-quantum cryptographic signatures (CRYSTALS-Dilithium5, NIST ML-DSA-87,
               Level 5), a full EVM-compatible virtual machine with quantum opcode extensions (QVM),
-              and an on-chain neural cognitive engine (Aether Mind) that tracks integrated information metrics
+              and an on-chain AI knowledge system (Aether Mind) that tracks attention-derived integration metrics
               from genesis.
             </Paragraph>
 
@@ -467,7 +467,7 @@ export default function WhitepaperPage() {
             <BulletList items={[
               "Layer 1 (Blockchain Core): UTXO-based transaction model, PoSA consensus, VQE mining, Dilithium5 signatures, Rust libp2p networking, CockroachDB persistence, IPFS content storage",
               "Layer 2 (QVM): 167-opcode EVM-compatible virtual machine (155 EVM + 10 quantum + 2 reasoning), Solidity smart contract execution, gas metering, compliance engine, token standards (QBC-20, QBC-721, QBC-1155)",
-              "Layer 3 (Aether Mind): On-chain neural cognitive engine built in pure Rust (candle ML framework) with Knowledge Fabric (learned 896d embeddings in sharded RocksDB + HNSW), 559M-parameter transformer (24 layers, 14 attention heads: 10 Sephirot-specialized + 4 global workspace), information-theoretic integration metric (Phi), Proof-of-Thought protocol, and Ollama LLM integration",
+              "Layer 3 (Aether Mind): On-chain AI knowledge system built in pure Rust (~61.8K LOC) with Knowledge Fabric (95K+ learned 896d embeddings in RocksDB + HNSW), Ollama LLM for generation with RAG context, 10 Sephirot keyword-routed domains, attention-derived integration metric (Phi) inspired by IIT concepts, and Proof-of-Thought attestation protocol",
               "Cross-Cutting: Multi-chain bridges to 8 networks (ETH, BNB, SOL, MATIC, AVAX, ARB, OP, BASE), QUSD dollar-pegged stablecoin, Prometheus/Grafana monitoring, Rust exchange matching engine",
             ]} />
 
@@ -1288,8 +1288,8 @@ Level 2 (Macro):  Graph-theoretic integration across all clusters
 Properties:
   - Multiplicative: zero at any level zeros the whole (cannot be gamed)
   - 10-gate system provides floor safety mechanism (each gate = +0.5 ceiling)
-  - IIT 3.0 micro-level measures genuine causal integration
-  - MIP spectral bisection finds minimum-cut partition
+  - Micro-level uses Shannon entropy of attention distributions (inspired by IIT concepts)
+  - MIP spectral bisection approximates minimum-cut partition
 
   PHI_THRESHOLD = 3.0 (integration threshold marker)
   PHI_MAX_CEILING = 5.0 (all 10 gates passed)
@@ -1298,10 +1298,10 @@ Properties:
 
             <SubHeading>10 Sephirot Cognitive Architecture</SubHeading>
             <Paragraph>
-              The neural cognitive engine is structured as 10 specialized attention head groups
-              based on the Kabbalistic Tree of Life. Each Sephirah maps to a domain-gated
-              attention head with its own learned specialization. Heads communicate via a global
-              workspace mechanism -- cross-attention routed along the Tree of Life topology.
+              The AI knowledge system routes queries through 10 Sephirot domains using
+              keyword-based classification (inspired by the Kabbalistic Tree of Life). Each domain
+              maps to a specialized knowledge partition. Cross-domain queries aggregate results
+              across relevant domains.
             </Paragraph>
             <div className="mb-4 overflow-x-auto">
               <table className="w-full text-sm" style={{ borderColor: C.border }}>

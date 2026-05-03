@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "QBC | Physics-Secured Digital Assets with On-Chain AI",
-    "description": "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and the Aether Mind on-chain neural cognitive engine."
+    "description": "Qubitcoin (QBC) is a physics-secured Layer 1 blockchain combining Proof-of-SUSY-Alignment mining, post-quantum cryptography, and Aether Mind — an on-chain AI knowledge system."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -21,7 +21,7 @@
     "heading3": "Physics Framework",
     "heading4": "for",
     "heading5": "Quantum-Secured Digital Assets",
-    "subtitle": "Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum cryptography, and Aether Mind: a neural cognitive engine tracking consciousness from genesis.",
+    "subtitle": "Qubitcoin combines Proof-of-SUSY-Alignment mining, post-quantum cryptography, and Aether Mind: an AI knowledge system with attention-derived metrics tracked from genesis.",
     "talkToAether": "Talk to Aether",
     "openDashboard": "Open Dashboard",
     "connectWallet": "Connect Wallet"
@@ -53,10 +53,10 @@
     },
     "aether": {
       "title": "Aether Mind",
-      "item1": "Neural cognitive engine with 10 Sephirot attention heads",
-      "item2": "HMS-Phi integration metric computed from real transformer attention",
-      "item3": "21K+ knowledge vectors across 10 Sephirot-sharded domains",
-      "item4": "Proof-of-Thought consensus embedded in every block since genesis"
+      "item1": "AI knowledge system with Ollama LLM + Knowledge Fabric RAG",
+      "item2": "HMS-Phi integration metric computed from attention-derived patterns",
+      "item3": "95K+ knowledge vectors across 10 Sephirot keyword-routed domains",
+      "item4": "Proof-of-Thought attestation hashes embedded in every block since genesis"
     }
   },
   "chat": {

@@ -176,7 +176,8 @@ impl SafetyPrinciple {
         }
 
         // Primary: whole-word keyword matching
-        let keywords: Vec<&str> = self.description.to_lowercase().leak().split_whitespace().collect();
+        let lower = self.description.to_lowercase();
+        let keywords: Vec<&str> = lower.split_whitespace().collect();
         let mut match_count = 0u32;
         for kw in &keywords {
             if kw.len() <= 3 {

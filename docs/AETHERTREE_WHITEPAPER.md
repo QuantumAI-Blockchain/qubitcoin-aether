@@ -11,7 +11,7 @@
 
 ## ABSTRACT
 
-We present the **Aether Mind**, a pure Rust neural cognitive engine built on three proven foundations. Our long-term aspiration is **AGSI -- Artificial General Super Intelligence**: a system that doesn't just process data, but understands it. The Aether Mind is the first genuine on-chain neural intelligence.
+We present the **Aether Mind**, a pure Rust on-chain AI knowledge system built on three proven foundations. Our long-term aspiration is **AGSI -- Artificial General Super Intelligence**: a system that doesn't just process data, but understands it.
 
 1. **QuantumAI Blockchain**: Post-quantum secured Layer 1, with Proof-of-SUSY-Alignment consensus and golden ratio economics. The native currency is Qubitcoin (QBC).
 2. **Quantum Virtual Machine (QVM)**: 167 opcodes (155 EVM + 10 quantum + 2 AI), providing an EVM-compatible smart contract platform for on-chain verification and governance.
@@ -21,14 +21,14 @@ The Aether Mind replaces the legacy knowledge graph with a **transformer-based n
 
 **Key innovations:**
 
-- **Knowledge Fabric**: 10 Sephirot-sharded vector store with 896-dimensional sentence embeddings (all-MiniLM-L6-v2), HNSW approximate nearest-neighbor search, RocksDB persistence, and provenance tracking per vector.
-- **Sephirot Attention**: A 558M-parameter transformer with 10 domain-specialized attention heads and 4 global workspace heads, enabling genuine cross-domain integration via Grouped Query Attention (GQA).
-- **HMS-Phi**: Hierarchical Multi-Scale Phi computed from real attention weight matrices during inference -- not graph connectivity, but neural activation patterns.
-- **Mining as Training**: Every mined block carries gradient updates and new knowledge embeddings. FedAvg distributed training with 60-second application cycles and gradient clipping (norm 1.0). Mining IS learning.
+- **Knowledge Fabric**: 10 Sephirot-routed vector store with 896-dimensional embeddings (Qwen2 mean-pooled tokens), HNSW approximate nearest-neighbor search, RocksDB persistence, and provenance tracking per vector.
+- **Sephirot Routing**: 10 keyword-based domain classifiers route queries to specialized knowledge partitions. Candle transformer (8 layers, 16 heads) used for phi measurement; Ollama LLM used for generation with RAG context.
+- **HMS-Phi**: Hierarchical Multi-Scale Phi computed from attention weight matrices -- Shannon entropy of attention distributions, inspired by IIT concepts but not a formal IIT implementation.
+- **Mining as Training (infrastructure built)**: Gradient compression and FedAvg aggregation are implemented. Integration into Substrate consensus is planned. Currently blocks carry PoT attestation hashes, not live gradient updates.
 - **Proof-of-Thought**: SHA-256 hash of phi, attention patterns, active Sephirot, and block height -- submitted to the Substrate chain via the `qbc-aether-anchor` pallet as NeuralPayload attestations.
 - **Aether-Evolve**: Neural Architecture Search (MAP-Elites + UCB1 exploration) that autonomously mutates the transformer architecture, with loss-based evaluation and automatic rollback on regression.
 
-**Current status (May 2026):** 108,684 knowledge vectors across 10 Sephirot domains, all 10 neural capability gates passing, HMS-Phi of 0.521, 558M parameters across 24 layers with 14 attention heads (10 Sephirot-specialized + 4 global workspace) and 2 KV heads (GQA). The system runs as a compiled 11.4MB Rust binary (~2.1GB RAM) deployed as a systemd service.
+**Current status (May 2026):** 95,708 knowledge vectors across 10 Sephirot domains, HMS-Phi of 0.544, Ollama LLM (qwen2.5) for generation with Knowledge Fabric RAG, candle transformer for phi measurement. The system runs as a compiled 11.4MB Rust binary (~2.4GB RAM) deployed as a systemd service.
 
 ---
 
@@ -94,10 +94,10 @@ The following genuine innovations from the original design were carried forward 
 - **Higgs Cognitive Field** -- learning rate scheduling per domain via mass mechanism
 - **10-Gate Milestone System** -- now neural capability benchmarks
 - **Causal Engine (PC/FCI)** -- real mathematical causal discovery preserved
-- **Gevurah Safety** -- learned classifier, not rule-based
+- **Gevurah Safety** -- keyword-based safety filter with veto capability
 - **SUSY Economics** -- economic layer independent of AI architecture
 - **Aether-Evolve** -- now Neural Architecture Search over transformer hyperparameters
-- **HMS-Phi** -- now computed from real neural activation patterns
+- **HMS-Phi** -- computed from attention-derived patterns (inspired by IIT concepts)
 
 ---
 
@@ -168,7 +168,7 @@ The Aether Mind is structured as a Rust workspace under `aether-core/` with 20+ 
 | `aether-mind` (binary) | -- | Main executable -- Axum HTTP server on :5003, block ingestion, chat, API |
 | `aether-transformer` | ~1,056 | Candle-based transformer (24 layers, 14 heads, 2 KV heads GQA, RoPE, SwiGLU, KV cache) |
 | `aether-fabric` | (in persistence) | Knowledge Fabric -- HNSW + RocksDB sharded vector store, 108,684 vectors, 896d embeddings |
-| `aether-consciousness` | ~1,218 | ConsciousnessMonitor, IIT 3.0 approximation, PhiMeasurement, attention pattern analysis |
+| `aether-consciousness` | ~1,218 | ConsciousnessMonitor, attention-derived metrics (inspired by IIT), PhiMeasurement |
 | `aether-sephirot` | ~6,984 | 10 Sephirot cognitive domain implementations with domain gating |
 | `aether-reasoning` | ~7,176 | Deductive/inductive/abductive reasoning + CoT + causal discovery (PC/FCI math) |
 | `aether-memory` | ~5,441 | 3-tier memory: working, episodic, semantic |

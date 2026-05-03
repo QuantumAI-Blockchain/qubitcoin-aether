@@ -50,6 +50,7 @@ impl pallet_timestamp::Config for Test {
 
 impl pallet_qbc_dilithium::Config for Test {
     type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = pallet_qbc_dilithium::weights::SubstrateWeight<Test>;
 }
 
 impl pallet_qbc_economics::Config for Test {
@@ -74,10 +75,12 @@ impl pallet_qbc_utxo::Config for Test {
     type MaxInputs = MaxInputs;
     type MaxOutputs = MaxOutputs;
     type FreezeChecker = NoFreezeChecker;
+    type WeightInfo = pallet_qbc_utxo::weights::SubstrateWeight<Test>;
 }
 
 impl Config for Test {
     type RuntimeEvent = RuntimeEvent;
+    type WeightInfo = crate::weights::SubstrateWeight<Test>;
 }
 
 /// Build test externalities with genesis state.
@@ -263,19 +266,20 @@ fn difficulty_reset_at_height_2750() {
 #[test]
 fn difficulty_floor_enforced() {
     new_test_ext().execute_with(|| {
-        // Set very low difficulty
+        // Set difficulty at the floor
         CurrentDifficulty::<Test>::put(DIFFICULTY_FLOOR);
 
         // Populate timestamp window so adjustment can fire.
-        // Use timestamps that would lower difficulty (fast blocks).
+        // Use timestamps that would raise difficulty (slow blocks → lower difficulty value).
+        // In this chain: higher difficulty = easier. Slow blocks should LOWER the number.
         let mut timestamps = sp_runtime::BoundedVec::default();
         for i in 0..10 {
-            let _ = timestamps.try_push(i * 1000); // 1s apart (fast, target is 3.3s)
+            let _ = timestamps.try_push(i * 10_000); // 10s apart (slow, target is 3.3s)
         }
         BlockTimestamps::<Test>::put(timestamps);
 
-        // Add another fast timestamp
-        Pallet::<Test>::adjust_difficulty(9_000, 3000);
+        // Trigger adjustment with slow block timing
+        Pallet::<Test>::adjust_difficulty(90_000, 3000);
 
         let diff = CurrentDifficulty::<Test>::get();
         assert!(

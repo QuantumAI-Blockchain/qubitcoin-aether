@@ -136,7 +136,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
-        allow_origin_regex=r"https://.*\.trycloudflare\.com",
+        # allow_origin_regex removed — only explicit origins allowed
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -2849,13 +2849,17 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
             # Mark selected UTXOs as spent in batch (single UPDATE)
             utxo_pairs = [(r[0], r[1]) for r in selected_rows]
-            # Build WHERE clause: (txid, vout) IN ((v1,v2), ...)
+            # Build WHERE clause with parameterized bindings (no SQL injection)
             pair_clauses = " OR ".join(
-                f"(txid = '{p[0]}' AND vout = {p[1]})" for p in utxo_pairs
+                f"(txid = :t{i} AND vout = :v{i})" for i in range(len(utxo_pairs))
             )
+            params: dict = {'txid': tx_hash}
+            for i, (utxo_txid, utxo_vout) in enumerate(utxo_pairs):
+                params[f't{i}'] = utxo_txid
+                params[f'v{i}'] = utxo_vout
             result = session.execute(
                 sa_text(f"UPDATE utxos SET spent = true, spent_by = :txid WHERE ({pair_clauses}) AND spent = false"),
-                {'txid': tx_hash}
+                params
             )
             if result.rowcount != len(utxo_pairs):
                 raise HTTPException(status_code=409, detail=f"UTXO conflict: expected {len(utxo_pairs)} updates, got {result.rowcount}")
@@ -7988,6 +7992,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.post("/aether/ingest")
     async def aether_ingest_knowledge(
+        request: Request,
         body: dict,
         authorization: Optional[str] = Header(None, alias="Authorization"),
     ):
@@ -7999,8 +8004,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
-        # Auth: admin key OR JWT token
-        x_admin = body.get("_admin_key", "")
+        # Auth: admin key (from header) OR JWT token
+        x_admin = request.headers.get("X-Admin-Key", "")
         if x_admin and hasattr(Config, "ADMIN_API_KEY") and Config.ADMIN_API_KEY:
             import hmac
             if not hmac.compare_digest(x_admin, Config.ADMIN_API_KEY):
@@ -8079,6 +8084,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.post("/aether/ingest/batch")
     async def aether_ingest_batch(
+        request: Request,
         body: dict,
         authorization: Optional[str] = Header(None, alias="Authorization"),
     ):
@@ -8089,8 +8095,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         """
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
-        # Auth: admin key OR JWT token
-        x_admin = body.get("_admin_key", "")
+        # Auth: admin key (from header) OR JWT token
+        x_admin = request.headers.get("X-Admin-Key", "")
         if x_admin and hasattr(Config, "ADMIN_API_KEY") and Config.ADMIN_API_KEY:
             import hmac
             if not hmac.compare_digest(x_admin, Config.ADMIN_API_KEY):
@@ -8150,6 +8156,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.post("/aether/compact")
     async def aether_compact(
+        request: Request,
         body: dict = {},
         authorization: Optional[str] = Header(None, alias="Authorization"),
     ):
@@ -8163,8 +8170,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
 
-        # Admin auth only
-        x_admin = body.get("_admin_key", "")
+        # Admin auth only (key from header, never body)
+        x_admin = request.headers.get("X-Admin-Key", "")
         if x_admin and hasattr(Config, "ADMIN_API_KEY") and Config.ADMIN_API_KEY:
             import hmac
             if not hmac.compare_digest(x_admin, Config.ADMIN_API_KEY):
@@ -8193,6 +8200,7 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
 
     @app.post("/aether/persist")
     async def aether_persist(
+        request: Request,
         body: dict = {},
         authorization: Optional[str] = Header(None, alias="Authorization"),
     ):
@@ -8204,7 +8212,8 @@ def create_rpc_app(db_manager, consensus_engine, mining_engine,
         if not aether_engine or not aether_engine.kg:
             raise HTTPException(status_code=503, detail="Knowledge graph not available")
 
-        x_admin = body.get("_admin_key", "")
+        # Admin auth only (key from header, never body)
+        x_admin = request.headers.get("X-Admin-Key", "")
         if x_admin and hasattr(Config, "ADMIN_API_KEY") and Config.ADMIN_API_KEY:
             import hmac
             if not hmac.compare_digest(x_admin, Config.ADMIN_API_KEY):

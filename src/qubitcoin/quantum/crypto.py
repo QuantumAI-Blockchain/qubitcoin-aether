@@ -527,14 +527,15 @@ def mnemonic_to_seed(words: List[str], passphrase: str = "") -> bytes:
 
 
 def seed_to_keypair(seed: bytes, level: SecurityLevel = SecurityLevel.LEVEL5) -> Tuple[SecureBytes, bytes]:
-    """Derive a deterministic Dilithium keypair from a seed.
+    """Derive a Dilithium keypair. WARNING: NOT deterministic from mnemonic.
 
-    Uses HKDF-SHA256 to expand the seed into deterministic randomness,
-    then feeds it to the Dilithium keygen.
+    dilithium-py's keygen uses internal randomness that cannot be seeded,
+    so the mnemonic CANNOT recover keys. The sole recovery source is
+    ``secure_key.env`` (or the backup files in ``secure_keys/``).
 
-    Note: dilithium-py's keygen uses internal randomness. We use the seed
-    to derive a deterministic private key by hashing the seed with the
-    level as context. This provides reproducible keys from the same mnemonic.
+    The mnemonic hash stored in secure_key.env (MNEMONIC_HASH) only proves
+    which mnemonic was *used during initial generation* — it does NOT allow
+    regeneration of the same keypair.
 
     Args:
         seed: 64-byte seed (from mnemonic_to_seed)
